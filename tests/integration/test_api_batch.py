@@ -1,6 +1,9 @@
 import asyncio
+import time
 
 import pytest
+
+from droneimpact.api.batch import JobStore
 
 SMALL_BATCH = {
     "drones": [
@@ -110,3 +113,112 @@ async def test_batch_with_caller_id(client):
     resp = await client.post("/analyze/batch", json=batch)
     body = resp.json()
     assert body.get("batch_id") == "my-batch-123" or body["status"] == "complete"
+
+
+# ── Out-of-bounds drone (valid Pydantic, fails during analysis) ──────────────
+
+_OUT_OF_BOUNDS_DRONE = {
+    "drone_id": "oob-drone",
+    "trajectory": {
+        "lat": 10.0,
+        "lon": 10.0,
+        "altitude_m": 400,
+        "heading_deg": 0.0,
+        "speed_m_s": 51.4,
+    },
+    "max_range_m": 3000,
+    "evaluation_spacing_m": 1000,
+}
+
+_GOOD_DRONE = {
+    "drone_id": "good-drone",
+    "trajectory": {
+        "lat": 48.0,
+        "lon": 31.0,
+        "altitude_m": 400,
+        "heading_deg": 0.0,
+        "speed_m_s": 51.4,
+    },
+    "max_range_m": 3000,
+    "evaluation_spacing_m": 1000,
+}
+
+
+# ── Partial failure status tests (I04) ───────────────────────────────────────
+
+async def test_batch_partial_failure_status(client):
+    """One good drone + one out-of-bounds drone => partial status."""
+    batch = {"drones": [_GOOD_DRONE, _OUT_OF_BOUNDS_DRONE]}
+    resp = await client.post("/analyze/batch", json=batch)
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["status"] == "partial"
+    assert len(body["results"]) == 1
+    assert len(body["errors"]) == 1
+    assert body["errors"][0]["drone_id"] == "oob-drone"
+
+
+async def test_batch_all_failed_status(client):
+    """All drones out-of-bounds => failed status."""
+    batch = {"drones": [_OUT_OF_BOUNDS_DRONE]}
+    resp = await client.post("/analyze/batch", json=batch)
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["status"] == "failed"
+    assert len(body["results"]) == 0
+    assert len(body["errors"]) == 1
+
+
+async def test_batch_all_succeed_status(client):
+    """All drones succeed => complete status."""
+    resp = await client.post("/analyze/batch", json=SMALL_BATCH)
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["status"] == "complete"
+    assert len(body["errors"]) == 0
+
+
+# ── Job store TTL eviction tests (I03) ───────────────────────────────────────
+
+def test_job_store_evicts_completed_jobs():
+    """Completed jobs older than TTL are removed on next access."""
+    store = JobStore(ttl_s=0.1)
+    job = store.create("test-job")
+    store.update("test-job", status="complete", completed_at=time.time())
+
+    # Job still exists immediately
+    assert store.get("test-job") is not None
+
+    # Wait for TTL to expire, then force eviction by resetting _last_eviction
+    time.sleep(0.15)
+    # Reset the eviction throttle so the next call actually runs eviction
+    store._last_eviction = 0.0
+
+    assert store.get("test-job") is None
+
+
+def test_job_store_does_not_evict_processing_jobs():
+    """Processing (incomplete) jobs are never evicted, even past TTL."""
+    store = JobStore(ttl_s=0.1)
+    store.create("processing-job")
+
+    time.sleep(0.15)
+    store._last_eviction = 0.0
+
+    assert store.get("processing-job") is not None
+    assert store.get("processing-job").status == "processing"
+
+
+def test_job_store_eviction_on_create():
+    """Eviction runs during create() as well."""
+    store = JobStore(ttl_s=0.1)
+    job = store.create("old-job")
+    store.update("old-job", status="complete", completed_at=time.time())
+
+    time.sleep(0.15)
+    store._last_eviction = 0.0
+
+    # Creating a new job should trigger eviction of old-job
+    store.create("new-job")
+    assert store.get("old-job") is None
+    assert store.get("new-job") is not None
