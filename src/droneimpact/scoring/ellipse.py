@@ -13,7 +13,8 @@ _CHI2_90 = 4.6052
 
 def compute_cep(enu_points: np.ndarray) -> float:
     """Radius containing 50% of impact points (Circular Error Probable)."""
-    ranges = np.sqrt((enu_points ** 2).sum(axis=1))
+    centroid = enu_points.mean(axis=0)
+    ranges = np.sqrt(((enu_points - centroid) ** 2).sum(axis=1))
     return float(np.percentile(ranges, 50))
 
 

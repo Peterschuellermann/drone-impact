@@ -19,9 +19,20 @@ def test_cep_50_percent_within_radius():
     rng = np.random.default_rng(1)
     points = rng.normal(0, 100, (5000, 2))
     cep = compute_cep(points)
-    ranges = np.sqrt((points ** 2).sum(axis=1))
+    centroid = points.mean(axis=0)
+    ranges = np.sqrt(((points - centroid) ** 2).sum(axis=1))
     fraction_inside = (ranges <= cep).mean()
     assert 0.45 <= fraction_inside <= 0.55
+
+
+def test_cep_offset_distribution():
+    """CEP should measure dispersion, not offset from origin."""
+    rng = np.random.default_rng(10)
+    # Points centered at (1000, 0) with small spread
+    points = rng.normal(0, 50, (5000, 2)) + np.array([1000.0, 0.0])
+    cep = compute_cep(points)
+    # CEP should reflect the ~50m spread, not the 1000m offset
+    assert cep < 200.0
 
 
 def test_ellipse_circular_distribution():
