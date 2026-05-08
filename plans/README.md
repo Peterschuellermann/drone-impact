@@ -26,7 +26,7 @@ Implementation agent: pick the first `[ ]` plan whose dependencies are all `[x]`
 | Status | ID | Plan | Dependencies |
 |---|---|---|---|
 | [ ] | B01 | [Performance: Vectorise Population and Infrastructure Queries](bugfixes/B01-performance-population-query.md) | — |
-| [ ] | B02 | [Fix: API Handlers Block the Event Loop](bugfixes/B02-event-loop-blocking.md) | — |
+| [x] | B02 | [Fix: API Handlers Block the Event Loop](bugfixes/B02-event-loop-blocking.md) | — |
 
 ## 1.1 — Dashboard & Deployment
 

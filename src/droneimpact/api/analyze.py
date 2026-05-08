@@ -26,7 +26,7 @@ router = APIRouter(prefix="/analyze")
 
 
 @router.post("/single", response_model=SingleDroneResponse)
-async def analyze_single(body: SingleDroneRequest, request: Request) -> SingleDroneResponse:
+def analyze_single(body: SingleDroneRequest, request: Request) -> SingleDroneResponse:
     state = get_app_state(request)
     if not state.data_loaded:
         raise HTTPException(status_code=503, detail="Data not loaded. Check /health.")

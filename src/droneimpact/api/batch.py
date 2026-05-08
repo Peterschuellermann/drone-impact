@@ -9,7 +9,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Any
 
-from fastapi import APIRouter, BackgroundTasks, HTTPException, Request
+from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, ConfigDict, Field
 
 from droneimpact.api import get_app_state
@@ -163,10 +163,9 @@ def _run_batch_job(batch_id: str, batch_request: BatchRequest, state, job_store:
 # ── Endpoints ──────────────────────────────────────────────────────────────────
 
 @router.post("/batch")
-async def analyze_batch(
+def analyze_batch(
     body: BatchRequest,
     request: Request,
-    background_tasks: BackgroundTasks,
 ):
     state = get_app_state(request)
     if not state.data_loaded:
@@ -176,9 +175,11 @@ async def analyze_batch(
     job = request.app.state.job_store.create(body.batch_id)
 
     if use_async:
-        background_tasks.add_task(
-            _run_batch_job, job.batch_id, body, state, request.app.state.job_store
+        thread = threading.Thread(
+            target=_run_batch_job,
+            args=(job.batch_id, body, state, request.app.state.job_store),
         )
+        thread.start()
         return {"batch_id": job.batch_id, "status": "processing"}
 
     body.batch_id = job.batch_id
@@ -190,7 +191,7 @@ async def analyze_batch(
 
 
 @router.get("/batch/{batch_id}")
-async def get_batch_result(batch_id: str, request: Request):
+def get_batch_result(batch_id: str, request: Request):
     job = request.app.state.job_store.get(batch_id)
     if job is None:
         raise HTTPException(status_code=404, detail=f"Batch job {batch_id!r} not found.")
