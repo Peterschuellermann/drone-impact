@@ -20,6 +20,7 @@ Two agent types operate in this repository:
 6. **Update spec:** If implementation differs from spec, update the relevant `/spec/` file.
 7. **Mark done:** Update plan status in `/plans/README.md` from `[ ]` to `[x]`.
 8. **Merge:** Squash the feature branch into one commit on `main`. Commit message: `feat(<id>): <plan title>`.
+9. **Push:** `git push origin main` — push immediately after the squash merge.
 
 ---
 
