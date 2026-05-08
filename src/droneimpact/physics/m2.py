@@ -44,9 +44,9 @@ def simulate_m2(
         n_samples,
     )
 
-    # Ballistic drag coefficient: 0.5 * rho * A * Cd / mass
+    # Ballistic drag: whole drone tumbles (full reference area, full mass)
     half_rho_A_Cd_over_m = (
-        0.5 * _RHO * shahed.fragment_reference_area_m2
+        0.5 * _RHO * shahed.reference_area_m2
         * shahed.drag_coeff_tumbling / shahed.mass_kg
     )
 

@@ -28,6 +28,14 @@ Implementation agent: pick the first `[ ]` plan whose dependencies are all `[x]`
 | [x] | B01 | [Performance: Vectorise Population and Infrastructure Queries](bugfixes/B01-performance-population-query.md) | — |
 | [x] | B02 | [Fix: API Handlers Block the Event Loop](bugfixes/B02-event-loop-blocking.md) | — |
 
+## Improvements (Round 2)
+
+| Status | ID | Plan | Dependencies |
+|---|---|---|---|
+| [ ] | I08 | [M2 Altitude-Dependent Air Density](improvements/I08-m2-altitude-density.md) | — |
+| [ ] | I09 | [Score Interpolation Test Coverage](improvements/I09-interpolation-tests.md) | — |
+| [ ] | I10 | [Banded/Two-Zone Casualty Equivalence Test](improvements/I10-casualty-equivalence-test.md) | — |
+
 ## 1.1 — Dashboard & Deployment
 
 | Status | ID | Plan | Dependencies |

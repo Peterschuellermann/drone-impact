@@ -21,8 +21,7 @@ from droneimpact.scoring.types import (
     TrajectoryResult,
 )
 
-N_COARSE = 200
-N_REFINE = 2000
+COARSE_FRACTION = 0.1
 N_REFINE_CANDIDATES = 3
 COARSE_STRIDE_TARGET = 30
 REFINE_NEIGHBOR_RADIUS = 2
@@ -117,11 +116,13 @@ class ScoringEngine:
             rng = np.random.default_rng()
 
         phys = self._config.physics
+        n_samples = phys.n_monte_carlo_samples
+        n_coarse = max(50, int(n_samples * COARSE_FRACTION))
 
         # Miss branch: expected casualties if drone completes trajectory
         last = trajectory[-1]
         last_agl = dem.msl_to_agl(last.lat, last.lon, last.altitude_m)
-        miss_enu = simulate_m1(last_agl, last.heading_deg, N_REFINE, phys, rng=rng)
+        miss_enu = simulate_m1(last_agl, last.heading_deg, n_samples, phys, rng=rng)
         miss_wgs84 = _enu_to_wgs84_fast(miss_enu, last.lat, last.lon)
         miss_casualties = casualty_engine.compute(miss_wgs84)
 
@@ -130,13 +131,13 @@ class ScoringEngine:
 
         if not use_two_pass:
             return self._score_all_points(
-                trajectory, dem, casualty_engine, miss_casualties, N_REFINE, rng,
+                trajectory, dem, casualty_engine, miss_casualties, n_samples, rng,
                 t_start, compute_ellipses=True,
             )
 
         # --- Two-pass scoring ---
 
-        # Pass 1: coarse scan — every stride-th point with N_COARSE samples
+        # Pass 1: coarse scan — every stride-th point with reduced samples
         stride = max(1, n_pts // COARSE_STRIDE_TARGET)
         coarse_indices = list(range(0, n_pts, stride))
         if (n_pts - 1) not in coarse_indices:
@@ -147,7 +148,7 @@ class ScoringEngine:
             pt = trajectory[i]
             agl = dem.msl_to_agl(pt.lat, pt.lon, pt.altitude_m)
             ps, _ = self._score_point(
-                pt, agl, N_COARSE, casualty_engine, miss_casualties, rng,
+                pt, agl, n_coarse, casualty_engine, miss_casualties, rng,
             )
             coarse_scores[i] = ps
 
@@ -167,7 +168,7 @@ class ScoringEngine:
             pt = trajectory[i]
             agl = dem.msl_to_agl(pt.lat, pt.lon, pt.altitude_m)
             ps, dists = self._score_point(
-                pt, agl, N_REFINE, casualty_engine, miss_casualties, rng,
+                pt, agl, n_samples, casualty_engine, miss_casualties, rng,
                 compute_ellipses=True,
             )
             refined_scores[i] = ps
@@ -203,7 +204,7 @@ class ScoringEngine:
             impact_distributions=impact_dists,
             metadata={
                 "n_trajectory_points": n_pts,
-                "n_monte_carlo_samples": N_REFINE,
+                "n_monte_carlo_samples": n_samples,
                 "simulation_time_ms": elapsed_ms,
             },
         )
@@ -246,7 +247,6 @@ class ScoringEngine:
             reasoning=reasoning,
         )
 
-        n_full = self._config.physics.n_monte_carlo_samples
         elapsed_ms = (time.perf_counter() - t_start) * 1000
 
         return TrajectoryResult(
@@ -255,7 +255,7 @@ class ScoringEngine:
             impact_distributions=impact_dists,
             metadata={
                 "n_trajectory_points": len(trajectory),
-                "n_monte_carlo_samples": N_REFINE,
+                "n_monte_carlo_samples": n_samples,
                 "simulation_time_ms": elapsed_ms,
             },
         )
