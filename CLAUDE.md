@@ -135,7 +135,11 @@ droneimpact/
 
 ## Data Files
 
-Large runtime data files (`data/kontur_*.gpkg`, `data/*_dem.tif`, `data/*_infra.geojson`) are **gitignored**. Tests that require spatial data use small synthetic fixtures in `tests/fixtures/`. The implementation must degrade gracefully when data files are absent (log a warning, mark `/health` as `data_loaded: false`).
+Large runtime data files (`data/kontur_*.gpkg`, `data/*_dem.tif`, `data/*_infra.geojson`) are **gitignored**. Run `./scripts/download_data.sh` to download and preprocess all data.
+
+- `.worktreeinclude` lists `data/` so that data files are automatically copied into new worktrees.
+- Tests that require spatial data use small synthetic fixtures in `tests/fixtures/`.
+- The implementation must degrade gracefully when data files are absent (log a warning, mark `/health` as `data_loaded: false`).
 
 ---
 
