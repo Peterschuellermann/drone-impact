@@ -21,20 +21,30 @@ When an air defence unit shoots down a drone, the intercept location determines 
 
 ```
 droneimpact/
-├── spec/           # Living system specification (physics, casualty, engagement models)
-├── plans/          # Feature implementation plans
+├── spec/               # Living system specification (physics, casualty, engagement models)
+├── plans/              # Feature implementation plans
 ├── src/
-│   └── droneimpact/    # Python package (FastAPI + NumPy/Numba simulation engine)
+│   └── droneimpact/
+│       ├── api/        # FastAPI routers and Pydantic schemas
+│       ├── physics/    # Monte Carlo terminal trajectory models (M1, M2, M3)
+│       ├── casualty/   # Blast, fragmentation, population, infrastructure scoring
+│       ├── scoring/    # Engagement score formula and explainability
+│       ├── data/       # Data loaders (DEM, Kontur, OSM)
+│       ├── dashboard/  # Streamlit visualization dashboard
+│       └── config.py   # YAML config loading and validation
 ├── tests/
 │   ├── unit/           # Isolated function-level tests
 │   ├── integration/    # Component interaction tests
 │   └── performance/    # Latency budget assertions
-├── scripts/        # Data download and preprocessing
-├── data/           # Runtime data files (gitignored — see Data Setup below)
-├── config.yaml     # Tunable parameters (physics constants, mode weights, radii)
-├── pyproject.toml  # Project metadata and dependencies
-├── CLAUDE.md       # Agent development workflow
-└── README.md       # This file
+├── scripts/            # Data download and preprocessing
+├── data/               # Runtime data files (gitignored — see Data Setup below)
+├── config.yaml         # Tunable parameters (physics constants, mode weights, radii)
+├── docker-compose.yml  # Run API + dashboard together
+├── Dockerfile          # API service image
+├── Dockerfile.dashboard # Dashboard service image
+├── pyproject.toml      # Project metadata and dependencies
+├── CLAUDE.md           # Agent development workflow
+└── README.md           # This file
 ```
 
 ## API
@@ -101,17 +111,49 @@ data/ukraine_infra.geojson
 
 ## Running
 
-```bash
-pip install .
-uvicorn src.droneimpact.main:app --host 0.0.0.0 --port 8080
-```
+### Docker Compose (recommended)
 
-Or with Docker:
+Starts both the API and the dashboard:
 
 ```bash
-docker build -t droneimpact .
-docker run -p 8080:8080 droneimpact
+docker compose up
 ```
+
+- API: http://localhost:8000
+- Dashboard: http://localhost:8501
+
+Data files must be in `data/` — they are mounted into the containers at runtime.
+
+### Manual
+
+```bash
+pip install -e ".[dashboard]"
+
+# Start the API
+uvicorn droneimpact.main:app --host 0.0.0.0 --port 8000
+
+# In a second terminal, start the dashboard
+streamlit run src/droneimpact/dashboard/app.py
+```
+
+## Dashboard
+
+The Streamlit dashboard provides interactive visualization of analysis results.
+
+**Single Drone mode:**
+- Trajectory map with evaluation points and recommended engagement marker
+- Impact distribution ellipses per failure mode
+- Risk profile chart (expected casualties and engagement score vs. distance)
+- Statistics panel with mode breakdown
+- Step-through trajectory replay with colour-coded risk gradient
+- GeoJSON export
+
+**Batch Analysis mode:**
+- Manual input (up to 5 drones) or CSV upload (up to 100)
+- Shared map with all drone trajectories
+- Priority ranking table sorted by expected casualties
+- Drill-down into individual drone analysis
+- Side-by-side comparison of 2–3 drones
 
 ## Testing
 
@@ -142,7 +184,7 @@ The full system specification lives in [spec/](spec/):
 - [Data Sources](spec/data-sources.md) — Kontur, SRTM, OSM, ACLED, historical data
 - [Architecture](spec/architecture.md) — FastAPI, vectorised engine, tech stack
 - [Assumptions](spec/assumptions.md) — physical estimates, expert consultation questions
-- [Roadmap](spec/roadmap.md) — v2 (visualization), v3 (environmental refinement), v4 (manoeuvre prediction), v5 (dashboard)
+- [Roadmap](spec/roadmap.md) — planned versions and feature backlog
 
 ## Licence
 
