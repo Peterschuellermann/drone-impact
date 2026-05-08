@@ -29,6 +29,8 @@ class PhysicsConfig(BaseModel):
     m2_dt_s: float
     m2_max_time_s: float
     m2_descent_rate_m_s: float
+    m2_power_duration_min_s: float = 1.0
+    m2_power_duration_max_s: float = 10.0
     m3_heading_spread_deg: float = 60.0
     m3_sigma_speed_m_s: float
     m3_speed_reduction_factor: float = 0.7

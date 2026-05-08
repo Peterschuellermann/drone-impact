@@ -20,6 +20,8 @@ physics:
   m2_dt_s: 1.0
   m2_max_time_s: 300.0
   m2_descent_rate_m_s: 1.5
+  m2_power_duration_min_s: 1.0
+  m2_power_duration_max_s: 10.0
   m3_heading_spread_deg: 60.0
   m3_sigma_speed_m_s: 10.0
   m3_speed_reduction_factor: 0.7
