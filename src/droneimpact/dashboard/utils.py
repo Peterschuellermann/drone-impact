@@ -164,11 +164,11 @@ def load_scenarios(config_path: str | Path = "config.yaml") -> list[dict]:
             "name": s["name"],
             "description": s.get("description", ""),
             "trajectory": {
-                "lat": s["trajectory"]["lat"],
-                "lon": s["trajectory"]["lon"],
-                "altitude_m": s["trajectory"]["altitude_m"],
-                "heading_deg": s["trajectory"]["heading_deg"],
-                "speed_m_s": s["trajectory"]["speed_m_s"],
+                "lat": float(s["trajectory"]["lat"]),
+                "lon": float(s["trajectory"]["lon"]),
+                "altitude_m": float(s["trajectory"]["altitude_m"]),
+                "heading_deg": float(s["trajectory"]["heading_deg"]),
+                "speed_m_s": float(s["trajectory"]["speed_m_s"]),
             },
             "max_range_m": s.get("max_range_m", 250_000),
         })
