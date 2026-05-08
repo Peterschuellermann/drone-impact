@@ -4,8 +4,8 @@ from pydantic import BaseModel, Field
 
 
 class TrajectoryInput(BaseModel):
-    lat: float
-    lon: float
+    lat: float = Field(ge=-90, le=90)
+    lon: float = Field(ge=-180, le=180)
     altitude_m: float = Field(gt=0, le=10_000)
     heading_deg: float = Field(ge=0, lt=360)
     speed_m_s: float = Field(ge=20, le=300)

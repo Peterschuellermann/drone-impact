@@ -147,6 +147,7 @@ async def analyze_batch(
         )
         return {"batch_id": job.batch_id, "status": "processing"}
 
+    body.batch_id = job.batch_id
     result = _execute_batch(body, state)
     request.app.state.job_store.update(
         job.batch_id, status="complete", result=result, completed_at=time.time()

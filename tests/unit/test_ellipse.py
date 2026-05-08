@@ -55,3 +55,17 @@ def test_ellipse_orientation_in_range():
     points = np.random.default_rng(4).normal(0, 100, (1000, 2))
     ellipse = compute_impact_ellipse(points, 48.0, 31.0)
     assert 0.0 <= ellipse.orientation_deg < 360.0
+
+
+def test_ellipse_single_point():
+    points = np.array([[100.0, 200.0]])
+    ellipse = compute_impact_ellipse(points, 48.0, 31.0)
+    assert ellipse.semi_major_m == 0.0
+    assert ellipse.semi_minor_m == 0.0
+
+
+def test_ellipse_all_identical_points():
+    points = np.full((500, 2), 50.0)
+    ellipse = compute_impact_ellipse(points, 48.0, 31.0)
+    assert ellipse.semi_major_m == 0.0
+    assert ellipse.semi_minor_m == 0.0

@@ -119,3 +119,8 @@ def test_trajectory_distances_ordered(scoring, short_trajectory, flat_dem, casua
     )
     dists = [ps.distance_from_start_m for ps in result.trajectory_scores]
     assert dists == sorted(dists)
+
+
+def test_empty_trajectory_raises(scoring, flat_dem, casualty_engine):
+    with pytest.raises(ValueError, match="trajectory must not be empty"):
+        scoring.score_trajectory([], flat_dem, casualty_engine, (48.1, 31.0))

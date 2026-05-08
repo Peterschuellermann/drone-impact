@@ -37,6 +37,9 @@ class ScoringEngine:
     ) -> TrajectoryResult:
         t_start = time.perf_counter()
 
+        if not trajectory:
+            raise ValueError("trajectory must not be empty")
+
         if rng is None:
             rng = np.random.default_rng()
 

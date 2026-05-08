@@ -13,6 +13,9 @@ class Shahed136Params(BaseModel):
     glide_ratio: float
     drag_coeff_tumbling: float
     reference_area_m2: float
+    fragment_reference_area_m2: float = 0.5
+    fragment_mass_mean_kg: float = 50.0
+    fragment_mass_std_kg: float = 10.0
 
 
 class PhysicsConfig(BaseModel):
@@ -26,11 +29,13 @@ class PhysicsConfig(BaseModel):
     m2_dt_s: float
     m2_max_time_s: float
     m2_descent_rate_m_s: float
-    m3_sigma_heading_deg: float
+    m3_heading_spread_deg: float = 60.0
     m3_sigma_speed_m_s: float
+    m3_speed_reduction_factor: float = 0.7
     m3_sigma_cd: float
     m3_dt_s: float
     m3_max_steps: int
+    m3_pitch_range_deg: float = 20.0
 
 
 class ModeWeights(BaseModel):

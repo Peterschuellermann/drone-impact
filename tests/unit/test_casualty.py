@@ -92,3 +92,26 @@ def test_far_from_population_zero(config):
     # Points far from the cluster
     pts = np.array([[55.0, 40.0], [55.01, 40.01]])
     assert eng.compute(pts) == 0.0
+
+
+def test_no_double_counting_per_person(populated_engine, config):
+    """Expected casualties per person must never exceed 1.0."""
+    pts = np.tile(CENTRE, (100, 1)).astype(np.float64)
+    per_point = populated_engine.compute_per_point(pts)
+    pop = PopulationIndex.from_dict(
+        make_test_population(*CENTRE, pop_density=5000.0, radius_cells=5)
+    )
+    max_pop = pop.query(CENTRE[0], CENTRE[1], config.casualty.fragmentation.danger_radius_m)
+    if max_pop > 0:
+        assert np.all(per_point <= max_pop)
+
+
+def test_empty_impact_array_returns_zero(empty_engine):
+    pts = np.zeros((0, 2), dtype=np.float64)
+    assert empty_engine.compute(pts) == 0.0
+
+
+def test_empty_impact_per_point_shape(empty_engine):
+    pts = np.zeros((0, 2), dtype=np.float64)
+    result = empty_engine.compute_per_point(pts)
+    assert result.shape == (0,)

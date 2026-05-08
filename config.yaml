@@ -10,6 +10,9 @@ physics:
     glide_ratio: 5.0
     drag_coeff_tumbling: 0.8
     reference_area_m2: 3.5
+    fragment_reference_area_m2: 0.5
+    fragment_mass_mean_kg: 50.0
+    fragment_mass_std_kg: 10.0
   m1_sigma_heading_deg: 5.0
   m1_sigma_glide_ratio: 0.8
   m2_sigma_init_deg: 30.0
@@ -17,11 +20,13 @@ physics:
   m2_dt_s: 1.0
   m2_max_time_s: 300.0
   m2_descent_rate_m_s: 1.5
-  m3_sigma_heading_deg: 20.0
+  m3_heading_spread_deg: 60.0
   m3_sigma_speed_m_s: 10.0
+  m3_speed_reduction_factor: 0.7
   m3_sigma_cd: 0.15
   m3_dt_s: 0.1
   m3_max_steps: 1000
+  m3_pitch_range_deg: 20.0
 
 engagement:
   p_kill: 0.50

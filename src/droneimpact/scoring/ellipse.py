@@ -23,6 +23,19 @@ def compute_impact_ellipse(
     origin_lon: float,
 ) -> ImpactEllipse:
     """90% confidence ellipse for the ENU impact distribution."""
+    if enu_points.shape[0] < 2 or np.allclose(enu_points, enu_points[0]):
+        mean_enu = enu_points.mean(axis=0)
+        centre_lat, centre_lon = enu_to_wgs84(
+            float(mean_enu[0]), float(mean_enu[1]), origin_lat, origin_lon
+        )
+        return ImpactEllipse(
+            centre_lat=centre_lat,
+            centre_lon=centre_lon,
+            semi_major_m=0.0,
+            semi_minor_m=0.0,
+            orientation_deg=0.0,
+        )
+
     cov = np.cov(enu_points.T)  # (2, 2)
     eigenvalues, eigenvectors = np.linalg.eigh(cov)
 

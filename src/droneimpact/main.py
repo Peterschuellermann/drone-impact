@@ -55,8 +55,8 @@ async def lifespan(app: FastAPI):
         app.state.data_loaded = True
         logger.info("All data loaded. Total startup: %.1f s", time.perf_counter() - t0)
 
-    except FileNotFoundError as e:
-        logger.warning("Data file missing: %s — starting in degraded mode", e)
+    except Exception as e:
+        logger.warning("Failed to load data: %s — starting in degraded mode", e)
 
     yield
 

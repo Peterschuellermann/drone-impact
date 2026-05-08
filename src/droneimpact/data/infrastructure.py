@@ -64,12 +64,12 @@ class InfrastructureIndex:
 
     def penalty(self, lat: float, lon: float) -> float:
         radius = self._config.penalty_radius_m
-        total = 0.0
+        worst = 0.0
         for cat in CATEGORIES:
             weight = getattr(self._config.weights, cat, 0.0)
             dist = self._nearest_dist_m(lon, lat, cat)
-            total += weight * max(0.0, 1.0 - dist / radius)
-        return min(total, self._config.max_penalty)
+            worst = max(worst, weight * max(0.0, 1.0 - dist / radius))
+        return min(worst, self._config.max_penalty)
 
     def penalty_batch(self, lats: np.ndarray, lons: np.ndarray) -> np.ndarray:
         return np.array(

@@ -85,7 +85,27 @@ def test_nodata_replaced_on_load(tmp_path):
     transform = rasterio.transform.from_bounds(30.0, 47.0, 32.0, 49.0, 5, 5)
     with rasterio.open(
         tif, "w", driver="GTiff", height=5, width=5,
-        count=1, dtype="int16", crs="EPSG:4326", transform=transform
+        count=1, dtype="int16", crs="EPSG:4326", transform=transform,
+        nodata=-32768,
+    ) as dst:
+        dst.write(data, 1)
+
+    dem = DEMIndex.load_from_file(tif)
+    assert dem.get_elevation(48.0, 31.0) == pytest.approx(0.0, abs=0.1)
+
+
+def test_custom_nodata_replaced_on_load(tmp_path):
+    """DEM with nodata=-9999 should also be handled correctly."""
+    import rasterio
+    import rasterio.transform
+
+    tif = tmp_path / "custom_nodata.tif"
+    data = np.full((5, 5), -9999, dtype=np.int16)
+    transform = rasterio.transform.from_bounds(30.0, 47.0, 32.0, 49.0, 5, 5)
+    with rasterio.open(
+        tif, "w", driver="GTiff", height=5, width=5,
+        count=1, dtype="int16", crs="EPSG:4326", transform=transform,
+        nodata=-9999,
     ) as dst:
         dst.write(data, 1)
 

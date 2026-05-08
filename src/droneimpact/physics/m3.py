@@ -32,16 +32,21 @@ def simulate_m3(
     dt = config.m3_dt_s
 
     # Stochastic initial conditions — all (N,) arrays
-    heading_samples = rng.normal(heading_deg, config.m3_sigma_heading_deg, n_samples)
+    spread = config.m3_heading_spread_deg
+    heading_samples = rng.uniform(heading_deg - spread, heading_deg + spread, n_samples)
+    reduced_speed = speed_m_s * config.m3_speed_reduction_factor
     speed_samples = np.maximum(
-        rng.normal(speed_m_s, config.m3_sigma_speed_m_s, n_samples), 0.0
+        rng.normal(reduced_speed, config.m3_sigma_speed_m_s, n_samples), 0.0
     )
-    pitch_deg = rng.uniform(-20.0, 20.0, n_samples)
+    pitch_range = config.m3_pitch_range_deg
+    pitch_deg = rng.uniform(-pitch_range, pitch_range, n_samples)
     cd_samples = np.maximum(
         rng.normal(shahed.drag_coeff_tumbling, config.m3_sigma_cd, n_samples), 0.1
     )
-    mass_frac = rng.uniform(0.1, 1.0, n_samples)
-    mass_samples = shahed.mass_kg * mass_frac
+    mass_samples = np.maximum(
+        rng.normal(shahed.fragment_mass_mean_kg, shahed.fragment_mass_std_kg, n_samples),
+        5.0,
+    )
 
     # Initial velocity components
     hdg_rad = np.radians(heading_samples)
@@ -58,7 +63,7 @@ def simulate_m3(
     alt = np.full(n_samples, altitude_agl_m, dtype=np.float64)
     alive = alt > 0
 
-    half_rho_A = 0.5 * _RHO * shahed.reference_area_m2
+    half_rho_A = 0.5 * _RHO * shahed.fragment_reference_area_m2
     drag_per_mass = half_rho_A * cd_samples / mass_samples  # (N,) coefficient
 
     for _ in range(config.m3_max_steps):
