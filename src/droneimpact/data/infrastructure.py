@@ -5,23 +5,27 @@ import math
 from pathlib import Path
 
 import numpy as np
+from scipy.spatial import cKDTree
 from shapely.geometry import Point, shape
-from shapely.strtree import STRtree
 
 from droneimpact.config import InfraConfig
 
 CATEGORIES = ("power_plant", "hospital", "water_works", "bridge", "school")
 
+_DEG_TO_M = 111_000.0
+
 
 class InfrastructureIndex:
     def __init__(
         self,
-        trees: dict[str, STRtree],
-        coords: dict[str, np.ndarray],
+        kdtrees: dict[str, cKDTree],
+        coords_deg: dict[str, np.ndarray],
+        ref_cos_lat: float,
         config: InfraConfig,
     ):
-        self._trees = trees
-        self._coords = coords
+        self._kdtrees = kdtrees
+        self._coords_deg = coords_deg
+        self._ref_cos_lat = ref_cos_lat
         self._config = config
 
     @classmethod
@@ -34,45 +38,56 @@ class InfrastructureIndex:
     def from_features(
         cls, features: list[dict], config: InfraConfig
     ) -> "InfrastructureIndex":
-        by_cat: dict[str, list[Point]] = {cat: [] for cat in CATEGORIES}
+        by_cat: dict[str, list[tuple[float, float]]] = {cat: [] for cat in CATEGORIES}
+        all_lats: list[float] = []
         for feat in features:
             cat = (feat.get("properties") or {}).get("category")
             if cat in by_cat:
                 geom = shape(feat["geometry"])
-                by_cat[cat].append(geom.centroid)
+                c = geom.centroid
+                by_cat[cat].append((c.x, c.y))  # lon, lat
+                all_lats.append(c.y)
 
-        trees: dict[str, STRtree] = {}
-        coords: dict[str, np.ndarray] = {}
+        ref_cos_lat = math.cos(math.radians(np.mean(all_lats))) if all_lats else 1.0
+
+        kdtrees: dict[str, cKDTree] = {}
+        coords_deg: dict[str, np.ndarray] = {}
         for cat, pts in by_cat.items():
             if pts:
-                trees[cat] = STRtree(pts)
-                coords[cat] = np.array([[p.x, p.y] for p in pts])  # [lon, lat]
-        return cls(trees, coords, config)
-
-    def _nearest_dist_m(self, lon: float, lat: float, category: str) -> float:
-        if category not in self._trees:
-            return math.inf
-        pt = Point(lon, lat)
-        # shapely 2.x: nearest() returns an integer index into the input geometries
-        idx = self._trees[category].nearest(pt)
-        if idx is None:
-            return math.inf
-        nearest_lonlat = self._coords[category][idx]  # [lon, lat]
-        dlat = (nearest_lonlat[1] - lat) * 111_000.0
-        dlon = (nearest_lonlat[0] - lon) * 111_000.0 * math.cos(math.radians(lat))
-        return math.sqrt(dlat ** 2 + dlon ** 2)
+                arr = np.array(pts)  # (N, 2) [lon, lat]
+                coords_deg[cat] = arr
+                xy = np.column_stack([
+                    arr[:, 0] * _DEG_TO_M * ref_cos_lat,
+                    arr[:, 1] * _DEG_TO_M,
+                ])
+                kdtrees[cat] = cKDTree(xy)
+        return cls(kdtrees, coords_deg, ref_cos_lat, config)
 
     def penalty(self, lat: float, lon: float) -> float:
         radius = self._config.penalty_radius_m
+        x = lon * _DEG_TO_M * self._ref_cos_lat
+        y = lat * _DEG_TO_M
         worst = 0.0
         for cat in CATEGORIES:
+            if cat not in self._kdtrees:
+                continue
             weight = getattr(self._config.weights, cat, 0.0)
-            dist = self._nearest_dist_m(lon, lat, cat)
+            dist, _ = self._kdtrees[cat].query([x, y])
             worst = max(worst, weight * max(0.0, 1.0 - dist / radius))
         return min(worst, self._config.max_penalty)
 
     def penalty_batch(self, lats: np.ndarray, lons: np.ndarray) -> np.ndarray:
-        return np.array(
-            [self.penalty(float(lat), float(lon)) for lat, lon in zip(lats, lons)],
-            dtype=np.float32,
-        )
+        radius = self._config.penalty_radius_m
+        pts = np.column_stack([
+            lons * _DEG_TO_M * self._ref_cos_lat,
+            lats * _DEG_TO_M,
+        ])
+        worst = np.zeros(len(lats), dtype=np.float64)
+        for cat in CATEGORIES:
+            if cat not in self._kdtrees:
+                continue
+            weight = getattr(self._config.weights, cat, 0.0)
+            dists, _ = self._kdtrees[cat].query(pts)
+            penalties = weight * np.maximum(0.0, 1.0 - dists / radius)
+            np.maximum(worst, penalties, out=worst)
+        return np.minimum(worst, self._config.max_penalty).astype(np.float32)

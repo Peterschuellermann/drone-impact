@@ -19,6 +19,7 @@ class PopulationIndex:
         self._resolution = resolution
         edge_m = h3.average_hexagon_edge_length(resolution, unit="m")
         self._cell_diameter_m = edge_m * math.sqrt(3)
+        self._disk_cache: dict[str, float] = {}
 
     @classmethod
     def load_from_file(cls, path: str | Path, resolution: int = 8) -> "PopulationIndex":
@@ -42,21 +43,38 @@ class PopulationIndex:
     def _k_for_radius(self, radius_m: float) -> int:
         return max(1, int(np.ceil(radius_m / self._cell_diameter_m)))
 
+    def _disk_population(self, centre: str, k: int) -> float:
+        key = f"{centre}:{k}"
+        cached = self._disk_cache.get(key)
+        if cached is not None:
+            return cached
+        neighbourhood = h3.grid_disk(centre, k)
+        total = sum(self._data.get(cell, 0.0) for cell in neighbourhood)
+        self._disk_cache[key] = total
+        return total
+
     def query(self, lat: float, lon: float, radius_m: float) -> float:
         centre = h3.latlng_to_cell(lat, lon, self._resolution)
         k = self._k_for_radius(radius_m)
-        neighbourhood = h3.grid_disk(centre, k)
-        total = sum(self._data.get(cell, 0.0) for cell in neighbourhood)
-        return float(total)
+        return float(self._disk_population(centre, k))
 
     def query_batch(
         self, lats: np.ndarray, lons: np.ndarray, radius_m: float
     ) -> np.ndarray:
-        return np.array(
-            [self.query(float(lat), float(lon), radius_m)
-             for lat, lon in zip(lats, lons)],
-            dtype=np.float32,
-        )
+        k = self._k_for_radius(radius_m)
+        n = len(lats)
+        cells = [
+            h3.latlng_to_cell(float(lats[i]), float(lons[i]), self._resolution)
+            for i in range(n)
+        ]
+
+        unique_cells = set(cells)
+        cell_pop = {c: self._disk_population(c, k) for c in unique_cells}
+
+        result = np.empty(n, dtype=np.float32)
+        for i, c in enumerate(cells):
+            result[i] = cell_pop[c]
+        return result
 
     @property
     def resolution(self) -> int:
