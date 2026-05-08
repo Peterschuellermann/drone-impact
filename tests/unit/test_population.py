@@ -1,3 +1,4 @@
+import h3
 import numpy as np
 import pytest
 
@@ -59,10 +60,27 @@ def test_resolution(populated_index):
     assert populated_index.resolution == 8
 
 
-def test_from_dict_preserves_density():
-    cells = {"8928308280fffff": 1000.0}
+def test_from_dict_preserves_population_counts():
+    lat, lon = 52.24, 4.96
+    cell = h3.latlng_to_cell(lat, lon, 8)
+    cells = {cell: 42.0}
     idx = PopulationIndex.from_dict(cells)
     assert idx.cell_count == 1
+    pop = idx.query(lat, lon, radius_m=50)
+    assert pop >= 42.0
+
+
+def test_k_for_radius_reasonable():
+    """_k_for_radius should return sensible k values for known radii."""
+    cells = make_test_population(pop_density=1000.0, radius_cells=5)
+    idx = PopulationIndex.from_dict(cells)
+    # At resolution 8, hex edge ≈ 460 m, diameter ≈ 800 m.
+    # A 500 m radius should need k=1; a 2000 m radius should need k>=2.
+    k_small = idx._k_for_radius(500.0)
+    k_large = idx._k_for_radius(2000.0)
+    assert k_small >= 1
+    assert k_large >= 2
+    assert k_large > k_small
 
 
 def test_batch_returns_float32_array(populated_index):
