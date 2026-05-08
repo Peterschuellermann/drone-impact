@@ -31,6 +31,8 @@ def discretise_trajectory(
             lon=float(wgs84[i, 1]),
             altitude_m=sv.altitude_m,
             distance_from_start_m=float(distances[i]),
+            heading_deg=sv.heading_deg,
+            speed_m_s=sv.speed_m_s,
         )
         for i in range(n_points)
     ]

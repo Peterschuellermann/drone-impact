@@ -17,3 +17,5 @@ class TrajectoryPoint:
     lon: float
     altitude_m: float
     distance_from_start_m: float
+    heading_deg: float = 0.0
+    speed_m_s: float = 0.0
