@@ -6,6 +6,22 @@ Every assumption made in v1, grouped by subsystem. For each we note the value us
 
 ---
 
+## Expert Types
+
+Five expert types cover all the questions in this document:
+
+| Tag | Who | What they know |
+|---|---|---|
+| **[Drone]** | UAV engineers, aerodynamicists, people who have studied the Shahed-136 airframe | Flight dynamics, glide ratio, guidance failure behaviour, structural break-up mechanics |
+| **[Missile]** | Air defence systems engineers, weapon system analysts | P_kill by system and range, engagement envelopes, kill mechanism, proximity fuze behaviour, mode weight priors from weapon design |
+| **[Blast]** | Terminal ballistics specialists, explosives engineers, EOD analysts | TNT equivalence, fragmentation characterisation, blast radii, casualty probability tables (STANAG/AEP-55) |
+| **[Ukraine]** | Ukrainian military, intelligence analysts, UXO clearance teams, radar operators | Operational P_kill and P_detonate observations, intercept footage and track data, UXO compound analysis, population displacement data |
+| **[Operator]** | Air defence commanders, doctrine advisors, IHL lawyers | How to weight infrastructure vs casualties, optimisation objective, multi-missile allocation doctrine |
+
+The three expert types you already have cover most questions. **[Blast]** and **[Operator]** are the two additional types needed. Blast expertise is distinct from missile expertise — missile engineers know how a warhead is triggered, but terminal ballistics specialists know how the explosion and fragments behave once it goes off. Operator expertise is needed for all the "how should the system behave" questions that have no physics answer.
+
+---
+
 ## Airframe Parameters (Shahed-136)
 
 | Parameter | Value | Status | Why it might be wrong |
@@ -17,7 +33,10 @@ Every assumption made in v1, grouped by subsystem. For each we note the value us
 | Drag coefficient (tumbling) | 0.8 | ✓ reasonable | Typical for blunt tumbling objects; unverified for this airframe |
 | Reference area | 3.5 m² | ⚠ unverified | Estimated from photographs; no engineering drawing |
 
-**Expert questions:** What is the actual warhead fill mass and explosive compound (TNT, RDX, PETN, Composition B)? Do you have wreckage measurements giving wingspan and fuselage dimensions? Is there any video or radar data of intact glide-path incidents that would allow glide ratio to be estimated?
+**Expert questions:**
+- What is the actual warhead fill mass and explosive compound (TNT, RDX, PETN, Composition B)? **[Blast] [Ukraine]**
+- Do you have wreckage measurements giving wingspan and fuselage dimensions? **[Drone] [Ukraine]**
+- Is there any video or radar data of intact glide-path incidents that would allow glide ratio to be estimated? **[Drone] [Ukraine]**
 
 ---
 
@@ -32,7 +51,7 @@ The drone loses propulsion and glides unpowered. Impacts cluster in an ellipse a
 
 **No wind modelled.** A crosswind systematically shifts the entire impact ellipse — this is a bias, not noise.
 
-**Expert question:** Is there radar or video evidence of heading deviation after propulsion loss? Do impact locations cluster tightly along the last heading, or show significant scatter?
+**Expert question:** Is there radar or video evidence of heading deviation after propulsion loss? Do impact locations cluster tightly along the last heading, or show significant scatter? **[Drone] [Ukraine]**
 
 ---
 
@@ -49,7 +68,7 @@ The engine is still running but guidance has failed. The drone flies with a rand
 
 **Structural assumption:** M2 assumes the engine keeps running after guidance failure. In reality many guidance failures also cut the engine, collapsing M2 into M1.
 
-**Expert question:** Does guidance failure typically cause engine shutdown too? Are there radar tracks showing heading behaviour in the seconds after a suspected guidance failure or jamming event?
+**Expert question:** Does guidance failure typically cause engine shutdown too? Are there radar tracks showing heading behaviour in the seconds after a suspected guidance failure or jamming event? **[Drone] [Ukraine]**
 
 ---
 
@@ -65,7 +84,7 @@ Structural failure scatters fragments ballistically from the intercept point. Ea
 | Fragment mass fraction | uniform 0.1–1.0 | ⚠ unverified | Real fragment distributions follow a Mott distribution (many small, few large); our uniform distribution overproduces large fragments |
 | Air density | 1.225 kg/m³ | ⚠ unverified | Sea-level constant; at 400 m AGL actual density is ~4% lower. Minor; straightforward fix |
 
-**Expert question:** Is there forensic analysis of fragment scatter from M3-type breakup sites — mass distribution, scatter direction, fragment shapes? The fragment mass distribution is the key unknown; it sets how far the outer edge of the debris field extends.
+**Expert question:** Is there forensic analysis of fragment scatter from M3-type breakup sites — mass distribution, scatter direction, fragment shapes? The fragment mass distribution is the key unknown; it sets how far the outer edge of the debris field extends. **[Blast] [Ukraine]**
 
 ---
 
@@ -79,7 +98,7 @@ propulsion_loss: 0.40   loss_of_control: 0.35   break_apart: 0.25
 
 These weights determine how the three footprints are combined. A 10-point shift between modes changes the recommended intercept point because the footprints are spatially very different: M1 is a narrow ellipse 1–3 km downrange, M2 is a large circle near the intercept point, M3 is a compact debris field at the intercept point. The current 40/35/25 split is a guess based on the logic that cannon fire (common in Ukraine) favours propulsion damage (M1).
 
-**Expert question:** From reviewing intercept footage or radar tracks, what fraction of confirmed kills show each terminal behaviour — intact glide (M1), powered erratic flight (M2), or mid-air break-up (M3)? Even a rough split would significantly constrain the model.
+**Expert question:** From reviewing intercept footage or radar tracks, what fraction of confirmed kills show each terminal behaviour — intact glide (M1), powered erratic flight (M2), or mid-air break-up (M3)? Even a rough split would significantly constrain the model. **[Ukraine] [Missile]**
 
 ---
 
@@ -91,7 +110,10 @@ These weights determine how the three footprints are combined. A 10-point shift 
 | P_detonate | 1.0 (implicit) | ⚠ unverified | UA reporting suggests 15–25% of intercepted Shaheds do not detonate. Non-detonation eliminates blast and warhead fragmentation entirely |
 | Shots per engagement | 1 (implicit) | ? open question | Multi-shot doctrine not modelled |
 
-**Expert question:** What confirmed intercept rate per engagement attempt is observed per system type? What fraction of intercepted Shaheds land without detonation — is this tracked systematically?
+**Expert questions:**
+- What confirmed intercept rate per engagement attempt is observed per system type? **[Missile] [Ukraine]**
+- What fraction of intercepted Shaheds land without detonation — is this tracked systematically? **[Ukraine] [Blast]**
+- What is the doctrine for number of shots per engagement — single shot, or salvo? **[Operator] [Ukraine]**
 
 ---
 
@@ -107,7 +129,9 @@ These weights determine how the three footprints are combined. A 10-point shift 
 
 **All population is assumed outdoors and fully exposed — no building sheltering.** This overestimates casualties by 2–5× in urban areas. Planned fix in v2.
 
-**Expert question:** What explosive fill compound is used in the Shahed-136 warhead? Has any UXO analysis been conducted on recovered intact warheads? Do you use STANAG 2895 or NATO AEP-55 casualty tables — if so, do the blast radii and probability values match?
+**Expert questions:**
+- What explosive fill compound is used in the Shahed-136 warhead? Has UXO analysis been conducted on recovered intact warheads? **[Blast] [Ukraine]**
+- Do you use STANAG 2895 or NATO AEP-55 casualty tables for similar charges? If so, what blast radii and probability values do they give? **[Blast]**
 
 ---
 
@@ -122,7 +146,9 @@ These weights determine how the three footprints are combined. A 10-point shift 
 
 **Fragmentation is modelled as uniform in all directions.** Real warhead fragmentation concentrates along the axis of detonation. Mid-air break-up (M3) may not detonate the warhead at all, making fragmentation from structural debris only — much smaller radius.
 
-**Expert question:** Does the Shahed-136 warhead have a pre-fragmented liner, or is it a simple blast charge? What fragment velocity and density have been measured from recovered detonation sites? This single data point would most improve the casualty model.
+**Expert questions:**
+- Does the Shahed-136 warhead have a pre-fragmented liner, or is it a simple blast charge? **[Blast] [Missile]**
+- What fragment velocity and density have been measured from recovered detonation sites? **[Blast] [Ukraine]**
 
 ---
 
@@ -135,7 +161,9 @@ These weights determine how the three footprints are combined. A 10-point shift 
 | Weights (power_plant: 5, hospital: 4, water: 4, bridge: 3, school: 2) | — | ⚠ unverified | Reasonable humanitarian ranking but no calibration source |
 | Decay function | linear | ? open question | Arbitrary; step function or inverse-square may be more physically appropriate |
 
-**Expert question (doctrine):** How should infrastructure proximity be weighted against direct civilian casualties? Is there a doctrinal standard (e.g., IHL proportionality assessment) that should anchor the multipliers? Do the relative weights match Ukrainian military priorities?
+**Expert questions:**
+- How should infrastructure proximity be weighted against direct civilian casualties? Is there a doctrinal standard (e.g., IHL proportionality) that anchors these multipliers? **[Operator]**
+- Do the relative category weights (power plant > hospital > water > bridge > school) match Ukrainian military priorities? **[Ukraine] [Operator]**
 
 ---
 
@@ -148,7 +176,7 @@ These weights determine how the three footprints are combined. A 10-point shift 
 | Displacement | partial | ⚠ unverified | Significant uncertainty in frontline and occupied oblasts |
 | Day/night variation | none | ⚠ unverified | Most Shahed attacks occur at night; residential areas have higher night occupancy than the static model reflects |
 
-**Expert question:** Is there a more current population estimate for Ukraine accounting for post-2022 displacement, particularly in eastern and southern oblasts?
+**Expert question:** Is there a more current population estimate for Ukraine accounting for post-2022 displacement, particularly in eastern and southern oblasts? **[Ukraine]**
 
 ---
 
@@ -156,17 +184,17 @@ These weights determine how the three footprints are combined. A 10-point shift 
 
 **Straight line, constant altitude, constant speed and heading.** Shaheds have reportedly made course corrections, circled targets, and used terrain masking. For early-trajectory intercept recommendations the error is small; for late-trajectory points it may move the recommendation by several kilometres.
 
-**Expert question:** How much do Shaheds typically deviate from a straight-line approach? Are there radar tracks showing the final 20–50 km of approach geometry?
+**Expert question:** How much do Shaheds typically deviate from a straight-line approach? Are there radar tracks showing the final 20–50 km of approach geometry? **[Drone] [Ukraine]**
 
 ---
 
 ## Scoring Logic
 
-**? Optimisation criterion:** Recommended point is `argmin(expected casualties)` — civilian protection only. No account of P_kill, strategic target value, or interceptor availability.
+**? Optimisation criterion:** Recommended point is `argmin(expected casualties)` — civilian protection only. No account of P_kill, strategic target value, or interceptor availability. **[Operator]**
 
-**? Mean vs risk-averse metrics:** Expected value (mean) is used throughout. A risk-averse operator might prefer the 95th percentile or CVaR. These can recommend different intercept points when the casualty distribution is heavy-tailed.
+**? Mean vs risk-averse metrics:** Expected value (mean) is used throughout. A risk-averse operator might prefer the 95th percentile or CVaR. These can recommend different intercept points when the casualty distribution is heavy-tailed. **[Operator]**
 
-**? Multi-missile allocation:** Batch API scores drones independently. In a swarm, two recommendations may assign the same interceptor to two simultaneous targets.
+**? Multi-missile allocation:** Batch API scores drones independently. In a swarm, two recommendations may assign the same interceptor to two simultaneous targets. **[Operator] [Ukraine]**
 
 ---
 
@@ -216,7 +244,10 @@ Active radar homing; ~23 kg proximity warhead. All-weather, all-lighting. Simila
 |---|---|---|---|
 | 0.35–0.55 | M1: 0.50, M2: 0.30, M3: 0.20 | ~2–2.5 km | 0–1.5 km |
 
-**Cross-system expert questions:** What confirmed intercept rates per engagement attempt are observed for each system against Shaheds? What terminal mode does each system typically produce — video or track analysis would directly calibrate the mode weights. Does multi-shot doctrine apply (salvos of 2 missiles; multiple bursts)?
+**Cross-system expert questions:**
+- What confirmed intercept rates per engagement attempt are observed for each system against Shaheds? **[Missile] [Ukraine]**
+- What terminal mode does each system typically produce — video or track analysis would directly calibrate the mode weights. **[Ukraine] [Missile]**
+- Does multi-shot doctrine apply for each system — salvos of 2 missiles or multiple bursts? **[Operator] [Ukraine]**
 
 ---
 
