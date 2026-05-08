@@ -11,8 +11,10 @@ def test_config_version(config):
     assert config.version == "1.0"
 
 
-def test_monte_carlo_samples(config):
-    assert config.physics.n_monte_carlo_samples == 10000
+def test_monte_carlo_samples():
+    # Load directly to check the config.yaml default, not the test-overridden fixture value.
+    cfg = load_config("config.yaml")
+    assert cfg.physics.n_monte_carlo_samples == 10000
 
 
 def test_p_kill(config):

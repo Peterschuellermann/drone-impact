@@ -28,4 +28,9 @@ def pytest_collection_modifyitems(config, items):
 
 @pytest.fixture(scope="session")
 def config() -> AppConfig:
-    return load_config("config.yaml")
+    cfg = load_config("config.yaml")
+    # Use fewer Monte Carlo samples in tests so the suite runs in seconds, not minutes.
+    # Performance tests set their own sample counts explicitly and are unaffected.
+    return cfg.model_copy(update={
+        "physics": cfg.physics.model_copy(update={"n_monte_carlo_samples": 200})
+    })

@@ -102,13 +102,13 @@ def test_impact_ellipse_semi_major_ge_semi_minor(scoring, short_trajectory, flat
         assert e.semi_major_m > 0
 
 
-def test_metadata_fields(scoring, short_trajectory, flat_dem, casualty_engine):
+def test_metadata_fields(scoring, short_trajectory, flat_dem, casualty_engine, config):
     result = scoring.score_trajectory(
         short_trajectory, flat_dem, casualty_engine, (48.1, 31.0),
         rng=np.random.default_rng(6)
     )
     assert result.metadata["n_trajectory_points"] == len(short_trajectory)
-    assert result.metadata["n_monte_carlo_samples"] == 10000
+    assert result.metadata["n_monte_carlo_samples"] == config.physics.n_monte_carlo_samples
     assert result.metadata["simulation_time_ms"] > 0
 
 

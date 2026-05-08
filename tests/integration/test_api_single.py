@@ -76,10 +76,10 @@ async def test_impact_distributions_count(client):
     assert len(body["impact_distributions"]) == n_pts * 3
 
 
-async def test_metadata_fields(client):
+async def test_metadata_fields(client, config):
     resp = await client.post("/analyze/single", json=VALID_REQUEST)
     meta = resp.json()["metadata"]
-    assert meta["n_monte_carlo_samples"] == 10000
+    assert meta["n_monte_carlo_samples"] == config.physics.n_monte_carlo_samples
     assert meta["simulation_time_ms"] > 0
     assert meta["n_trajectory_points"] > 0
 
