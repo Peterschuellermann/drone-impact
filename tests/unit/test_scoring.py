@@ -64,13 +64,26 @@ def test_all_engagement_scores_non_negative(scoring, short_trajectory, flat_dem,
         assert ps.engagement_score >= 0.0
 
 
-def test_mode_weights_in_breakdown(scoring, short_trajectory, flat_dem, casualty_engine):
+def _enabled_mode_names(config) -> set[str]:
+    e = config.engagement.mode_enable
+    names = set()
+    if e.propulsion_loss:
+        names.add("propulsion_loss")
+    if e.loss_of_control:
+        names.add("loss_of_control")
+    if e.break_apart:
+        names.add("break_apart")
+    return names
+
+
+def test_mode_weights_in_breakdown(scoring, short_trajectory, flat_dem, casualty_engine, config):
     result = scoring.score_trajectory(
         short_trajectory, flat_dem, casualty_engine, (48.1, 31.0),
         rng=np.random.default_rng(2)
     )
+    expected = _enabled_mode_names(config)
     for ps in result.trajectory_scores:
-        assert set(ps.breakdown.keys()) == {"propulsion_loss", "loss_of_control", "break_apart"}
+        assert set(ps.breakdown.keys()) == expected
 
 
 def test_reasoning_nonempty(scoring, short_trajectory, flat_dem, casualty_engine):
@@ -82,13 +95,13 @@ def test_reasoning_nonempty(scoring, short_trajectory, flat_dem, casualty_engine
     assert len(result.recommended_engagement.reasoning) > 5
 
 
-def test_impact_distributions_count(scoring, short_trajectory, flat_dem, casualty_engine):
+def test_impact_distributions_count(scoring, short_trajectory, flat_dem, casualty_engine, config):
     result = scoring.score_trajectory(
         short_trajectory, flat_dem, casualty_engine, (48.1, 31.0),
         rng=np.random.default_rng(4)
     )
-    # 3 modes × n_points
-    assert len(result.impact_distributions) == len(short_trajectory) * 3
+    n_modes = len(_enabled_mode_names(config))
+    assert len(result.impact_distributions) == len(short_trajectory) * n_modes
 
 
 def test_impact_ellipse_semi_major_ge_semi_minor(scoring, short_trajectory, flat_dem, casualty_engine):
@@ -246,11 +259,21 @@ def test_interpolation_output_length():
 # --- Mode enable tests ---
 
 
-def test_disabled_mode_excluded_from_breakdown(config, short_trajectory, flat_dem, casualty_engine):
-    disabled_cfg = config.model_copy(update={
+def _all_modes_enabled(config):
+    from droneimpact.config import ModeEnable
+    return config.model_copy(update={
         "engagement": config.engagement.model_copy(update={
-            "mode_enable": config.engagement.mode_enable.model_copy(
-                update={"break_apart": False}
+            "mode_enable": ModeEnable(propulsion_loss=True, loss_of_control=True, break_apart=True),
+        }),
+    })
+
+
+def test_disabled_mode_excluded_from_breakdown(config, short_trajectory, flat_dem, casualty_engine):
+    base = _all_modes_enabled(config)
+    disabled_cfg = base.model_copy(update={
+        "engagement": base.engagement.model_copy(update={
+            "mode_enable": base.engagement.mode_enable.model_copy(
+                update={"loss_of_control": False}
             ),
         }),
     })
@@ -260,15 +283,16 @@ def test_disabled_mode_excluded_from_breakdown(config, short_trajectory, flat_de
         rng=np.random.default_rng(0),
     )
     for ps in result.trajectory_scores:
-        assert "break_apart" not in ps.breakdown
-        assert set(ps.breakdown.keys()) == {"propulsion_loss", "loss_of_control"}
+        assert "loss_of_control" not in ps.breakdown
+        assert set(ps.breakdown.keys()) == {"propulsion_loss", "break_apart"}
 
 
 def test_disabled_mode_renormalizes_weights(config, short_trajectory, flat_dem, casualty_engine):
-    disabled_cfg = config.model_copy(update={
-        "engagement": config.engagement.model_copy(update={
-            "mode_enable": config.engagement.mode_enable.model_copy(
-                update={"break_apart": False}
+    base = _all_modes_enabled(config)
+    disabled_cfg = base.model_copy(update={
+        "engagement": base.engagement.model_copy(update={
+            "mode_enable": base.engagement.mode_enable.model_copy(
+                update={"loss_of_control": False}
             ),
         }),
     })
@@ -283,10 +307,11 @@ def test_disabled_mode_renormalizes_weights(config, short_trajectory, flat_dem, 
 
 
 def test_disabled_mode_fewer_impact_distributions(config, short_trajectory, flat_dem, casualty_engine):
-    disabled_cfg = config.model_copy(update={
-        "engagement": config.engagement.model_copy(update={
-            "mode_enable": config.engagement.mode_enable.model_copy(
-                update={"break_apart": False}
+    base = _all_modes_enabled(config)
+    disabled_cfg = base.model_copy(update={
+        "engagement": base.engagement.model_copy(update={
+            "mode_enable": base.engagement.mode_enable.model_copy(
+                update={"loss_of_control": False}
             ),
         }),
     })

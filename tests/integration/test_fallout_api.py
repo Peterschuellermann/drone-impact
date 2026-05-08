@@ -9,15 +9,21 @@ VALID_POINT_REQUEST = {
 }
 
 
-async def test_point_impact_endpoint_returns_all_modes(client):
-    """POST /analyze/point-impact returns impact data for all three modes."""
+async def test_point_impact_endpoint_returns_enabled_modes(client, config):
+    """POST /analyze/point-impact returns impact data for enabled modes."""
     resp = await client.post("/analyze/point-impact", json=VALID_POINT_REQUEST)
     assert resp.status_code == 200
     body = resp.json()
     assert "modes" in body
-    assert set(body["modes"].keys()) == {
-        "propulsion_loss", "loss_of_control", "break_apart",
-    }
+    e = config.engagement.mode_enable
+    expected = set()
+    if e.propulsion_loss:
+        expected.add("propulsion_loss")
+    if e.loss_of_control:
+        expected.add("loss_of_control")
+    if e.break_apart:
+        expected.add("break_apart")
+    assert set(body["modes"].keys()) == expected
 
 
 async def test_point_impact_ellipses_valid(client):

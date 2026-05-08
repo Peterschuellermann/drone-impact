@@ -69,11 +69,13 @@ async def test_recommended_is_min_score(client):
     )
 
 
-async def test_impact_distributions_count(client):
+async def test_impact_distributions_count(client, config):
     resp = await client.post("/analyze/single", json=VALID_REQUEST)
     body = resp.json()
     n_pts = body["metadata"]["n_trajectory_points"]
-    assert len(body["impact_distributions"]) == n_pts * 3
+    e = config.engagement.mode_enable
+    n_modes = sum([e.propulsion_loss, e.loss_of_control, e.break_apart])
+    assert len(body["impact_distributions"]) == n_pts * n_modes
 
 
 async def test_metadata_fields(client, config):
@@ -126,9 +128,16 @@ async def test_503_when_data_not_loaded(config):
     assert resp.status_code == 503
 
 
-async def test_breakdown_mode_keys(client):
+async def test_breakdown_mode_keys(client, config):
+    e = config.engagement.mode_enable
+    expected = set()
+    if e.propulsion_loss:
+        expected.add("propulsion_loss")
+    if e.loss_of_control:
+        expected.add("loss_of_control")
+    if e.break_apart:
+        expected.add("break_apart")
+
     resp = await client.post("/analyze/single", json=VALID_REQUEST)
     for ps in resp.json()["trajectory_scores"]:
-        assert set(ps["breakdown"].keys()) == {
-            "propulsion_loss", "loss_of_control", "break_apart"
-        }
+        assert set(ps["breakdown"].keys()) == expected
