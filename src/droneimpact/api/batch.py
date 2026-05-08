@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import logging
 import threading
 import time
+import traceback
 import uuid
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
@@ -18,6 +20,8 @@ from droneimpact.physics.trajectory import discretise_trajectory
 from droneimpact.physics.types import StateVector
 from droneimpact.scoring.engine import ScoringEngine
 
+logger = logging.getLogger(__name__)
+
 router = APIRouter(prefix="/analyze")
 
 SYNC_THRESHOLD = 5
@@ -28,7 +32,7 @@ SYNC_THRESHOLD = 5
 @dataclass
 class BatchJob:
     batch_id: str
-    status: str  # "processing" | "complete" | "failed"
+    status: str  # "processing" | "complete" | "partial" | "failed"
     created_at: float = field(default_factory=time.time)
     completed_at: float | None = None
     result: dict | None = None
@@ -36,19 +40,36 @@ class BatchJob:
 
 
 class JobStore:
-    def __init__(self):
+    def __init__(self, ttl_s: float = 3600.0):
         self._jobs: dict[str, BatchJob] = {}
         self._lock = threading.Lock()
+        self._ttl_s = ttl_s
+        self._last_eviction = 0.0
+
+    def _evict_expired(self) -> None:
+        """Remove completed jobs older than TTL. Caller must hold self._lock."""
+        now = time.time()
+        if now - self._last_eviction < 60.0:
+            return
+        self._last_eviction = now
+        expired = [
+            bid for bid, job in self._jobs.items()
+            if job.completed_at is not None and now - job.completed_at > self._ttl_s
+        ]
+        for bid in expired:
+            del self._jobs[bid]
 
     def create(self, batch_id: str | None = None) -> BatchJob:
         bid = batch_id or str(uuid.uuid4())
         job = BatchJob(batch_id=bid, status="processing")
         with self._lock:
+            self._evict_expired()
             self._jobs[bid] = job
         return job
 
     def get(self, batch_id: str) -> BatchJob | None:
         with self._lock:
+            self._evict_expired()
             return self._jobs.get(batch_id)
 
     def update(self, batch_id: str, **kwargs) -> None:
@@ -104,13 +125,26 @@ def _execute_batch(batch_request: BatchRequest, state) -> dict:
         try:
             results.append(_analyze_one(drone_req, state))
         except Exception as exc:
+            logger.warning(
+                "Drone %s failed: %s",
+                drone_req.drone_id or "unknown",
+                traceback.format_exc(),
+            )
             errors.append({
                 "drone_id": drone_req.drone_id or "unknown",
                 "error": str(exc),
             })
+
+    if not results and errors:
+        status = "failed"
+    elif errors:
+        status = "partial"
+    else:
+        status = "complete"
+
     return {
         "batch_id": batch_request.batch_id,
-        "status": "complete",
+        "status": status,
         "completed_at_utc": datetime.now(timezone.utc).isoformat(),
         "results": results,
         "errors": errors,
@@ -120,7 +154,7 @@ def _execute_batch(batch_request: BatchRequest, state) -> dict:
 def _run_batch_job(batch_id: str, batch_request: BatchRequest, state, job_store: JobStore):
     try:
         result = _execute_batch(batch_request, state)
-        job_store.update(batch_id, status="complete", result=result,
+        job_store.update(batch_id, status=result["status"], result=result,
                          completed_at=time.time())
     except Exception as exc:
         job_store.update(batch_id, status="failed", error=str(exc))
@@ -150,7 +184,7 @@ async def analyze_batch(
     body.batch_id = job.batch_id
     result = _execute_batch(body, state)
     request.app.state.job_store.update(
-        job.batch_id, status="complete", result=result, completed_at=time.time()
+        job.batch_id, status=result["status"], result=result, completed_at=time.time()
     )
     return result
 
@@ -162,6 +196,6 @@ async def get_batch_result(batch_id: str, request: Request):
         raise HTTPException(status_code=404, detail=f"Batch job {batch_id!r} not found.")
     if job.status == "processing":
         return {"batch_id": batch_id, "status": "processing"}
-    if job.status == "failed":
-        return {"batch_id": batch_id, "status": "failed", "error": job.error}
-    return job.result
+    if job.result is not None:
+        return job.result
+    return {"batch_id": batch_id, "status": "failed", "error": job.error}
