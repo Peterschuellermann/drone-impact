@@ -66,6 +66,36 @@
 
 ---
 
+## 1.1b — Demo, Safety & Interactivity
+
+**Goal:** Make the system demonstrable with realistic scenarios, add a safety constraint to the engagement recommendation, and make the dashboard interactive for fallout exploration.
+
+### Planned features
+
+**Demo scenarios (F19)**
+- Pre-built library of Shahed-136 attack paths from Russia into Ukraine
+- Land approaches: Bryansk → Kyiv, Belgorod → Kharkiv, Crimea → Mykolaiv, Rostov → Dnipro
+- Sea approaches: Black Sea → Odesa, Black Sea → Kyiv
+- Scenarios defined in `config.yaml`, selectable from dashboard sidebar dropdown
+- Auto-fills input form and runs analysis with one click
+
+**Safe intercept constraint (F20)**
+- New constraint on the recommended engagement point: no high-risk trajectory sections may exist before (upstream of) the proposed intercept position
+- Configurable risk threshold (`engagement.high_risk_threshold`, default 0.5 expected hit-branch casualties)
+- When the constraint changes the recommendation, the response includes both the constrained pick and the unconstrained optimum
+- Risk zones (contiguous high-risk segments) returned in the API response
+- Prevents the system from recommending "wait until after the city" when the drone must overfly that city
+
+**Fallout area visualization (F21)**
+- Interactive point selection on the trajectory map — clicking any evaluation point shows the debris fallout area
+- Three colour-coded impact ellipses (M1/M2/M3) rendered as semi-transparent polygons
+- Combined danger zone outline (convex hull of all mode ellipses)
+- New lightweight endpoint `POST /analyze/point-impact` for on-demand impact queries
+- Risk zone segments from F20 highlighted on the trajectory line
+- Detail panel shows per-point statistics and mode breakdown
+
+---
+
 ## 1.2 — Environmental and Engagement Refinement
 
 **Goal:** Improve physical accuracy and operational realism; update dashboard to expose new parameters.

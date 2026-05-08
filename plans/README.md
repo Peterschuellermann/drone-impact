@@ -32,9 +32,9 @@ Implementation agent: pick the first `[ ]` plan whose dependencies are all `[x]`
 
 | Status | ID | Plan | Dependencies |
 |---|---|---|---|
-| [ ] | I08 | [M2 Altitude-Dependent Air Density](improvements/I08-m2-altitude-density.md) | — |
-| [ ] | I09 | [Score Interpolation Test Coverage](improvements/I09-interpolation-tests.md) | — |
-| [ ] | I10 | [Banded/Two-Zone Casualty Equivalence Test](improvements/I10-casualty-equivalence-test.md) | — |
+| [x] | I08 | [M2 Altitude-Dependent Air Density](improvements/I08-m2-altitude-density.md) | — |
+| [x] | I09 | [Score Interpolation Test Coverage](improvements/I09-interpolation-tests.md) | — |
+| [x] | I10 | [Banded/Two-Zone Casualty Equivalence Test](improvements/I10-casualty-equivalence-test.md) | — |
 
 ## 1.1 — Dashboard & Deployment
 
@@ -44,6 +44,14 @@ Implementation agent: pick the first `[ ]` plan whose dependencies are all `[x]`
 | [x] | F16 | [Batch Visualization](F16-batch-visualization.md) | F15, F13 |
 | [x] | F17 | [Trajectory Animation](F17-trajectory-animation.md) | F15 |
 | [x] | F18 | [Docker Compose Deployment](F18-docker-compose.md) | F15 |
+
+## 1.1b — Demo, Safety & Interactivity
+
+| Status | ID | Plan | Dependencies |
+|---|---|---|---|
+| [ ] | F19 | [Demo Scenarios](F19-demo-scenarios.md) | F12, F15 |
+| [ ] | F20 | [Safe Intercept Constraint](F20-safe-intercept-constraint.md) | F10 |
+| [ ] | F21 | [Fallout Area Visualization](F21-fallout-area-visualization.md) | F15, F20 |
 
 ## 1.2 — Environmental and Engagement Refinement
 
