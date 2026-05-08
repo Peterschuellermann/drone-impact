@@ -144,10 +144,65 @@ The constraint is a **filter on the recommendation**, not a change to the engage
 It is possible that every engagement point has higher expected casualties from debris than from the drone completing its trajectory (e.g., the drone is already over a dense city and the entire remaining path is also dense). In this case:
 
 - The system still returns the argmin (best available option)
-- The response includes a flag: `"no_safe_engagement": true`
-- The response includes `"baseline_casualties": C_terminal` so the operator can compare the recommended engagement against doing nothing
+- The miss branch expected casualties are included per-point in the response (`miss_branch_expected_casualties`)
+- Engagement zones classify dangerous stretches as `no_go`, giving operators structured visibility into which areas are unsafe
 
-This flag should be treated as informational, not prescriptive. The operator has context the system does not (e.g., known target, other drones in flight).
+The operator has context the system does not (e.g., known target, other drones in flight).
+
+---
+
+## Adaptive Resolution (Long Trajectories)
+
+For trajectories longer than 30 points, the scoring engine uses an adaptive resolution strategy to balance computation cost and accuracy:
+
+1. **Population pre-scan**: Query population at `max_frag_radius` around each trajectory point using `PopulationIndex.query_batch()`. Cost: ~7 H3 cell lookups per point, negligible vs MC simulation.
+
+2. **Point classification** based on pre-scan population:
+   - `empty`: population = 0 → skip MC; score = `(1-p_kill) × miss_casualties`
+   - `low`: 0 < population < `population_high_risk_threshold` (default 50) → full MC at original spacing
+   - `high`: population ≥ threshold → dense evaluation at ~50m spacing (every ~1 second of flight time)
+
+3. **Dense evaluation**: Additional points are interpolated at `dense_spacing_m` (default 50m) between original trajectory points in high-risk stretches. The `recommended_engagement` always snaps to the nearest original trajectory point.
+
+4. **Gap interpolation**: Skipped (empty) points receive interpolated scores. Output always has exactly `len(trajectory)` entries.
+
+Short trajectories (≤30 points) bypass adaptive resolution and run full MC on all points.
+
+### Scoring Configuration
+
+| Parameter | Default | Description |
+|---|---|---|
+| `population_empty_threshold` | 0.0 | Population below this is treated as empty |
+| `population_high_risk_threshold` | 50.0 | Population above this triggers dense evaluation |
+| `dense_spacing_m` | 50.0 | Spacing for interpolated points in high-risk zones |
+| `miss_cache_agl_round_m` | 10.0 | AGL rounding for miss cache key |
+| `miss_cache_heading_round_deg` | 1.0 | Heading rounding for miss cache key |
+| `zone_caution_threshold` | 0.1 | Expected casualties threshold for caution zone |
+| `zone_nogo_threshold` | 1.0 | Expected casualties threshold for no-go zone |
+
+### Miss Branch Cache
+
+The miss branch (drone continues on trajectory) is cached at module level, keyed on `(H3 cell at resolution 8, rounded AGL, rounded heading, n_samples, p_kill, miss_cache_agl_round_m)`. Two endpoints in the same H3 cell (~460m precision) with similar AGL and heading produce identical miss casualties. The cache is a plain dict, GIL-safe for FastAPI's threadpool. `clear_miss_cache()` is exposed for tests.
+
+---
+
+## Engagement Zones
+
+The scoring engine classifies contiguous trajectory stretches into **engagement zones**:
+
+| Classification | Condition | Meaning |
+|---|---|---|
+| `clear` | expected casualties < `zone_caution_threshold` | Safe to engage |
+| `caution` | casualties ≥ caution, < no-go threshold | Engage with awareness of risk |
+| `no_go` | casualties ≥ `zone_nogo_threshold` | Avoid engagement in this stretch |
+
+Each zone includes:
+- Start/end point index, distance, and lat/lon
+- Peak and mean expected casualties
+- Total population within fragmentation radius
+- Structured reasons list (e.g., "Dense population: up to 120 persons within frag radius")
+
+Zones are always computed (cheap — one walk over the scored point list) and included in the API response. The `explain()` function references no-go zone counts when generating the recommended engagement reasoning.
 
 ---
 

@@ -36,6 +36,7 @@ Implementation agent: pick the first `[ ]` plan whose dependencies are all `[x]`
 | [x] | I09 | [Score Interpolation Test Coverage](improvements/I09-interpolation-tests.md) | — |
 | [x] | I10 | [Banded/Two-Zone Casualty Equivalence Test](improvements/I10-casualty-equivalence-test.md) | — |
 | [x] | I11 | [Parallel Computation](improvements/I11-parallel-computation.md) | — |
+| [ ] | I12 | [Numba JIT Physics Engines](improvements/I12-numba-jit-physics.md) | I11 |
 
 ## 1.1 — Dashboard & Deployment
 

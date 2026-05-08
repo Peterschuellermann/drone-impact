@@ -115,12 +115,49 @@ Altitudes are **metres above mean sea level (MSL)** in the API. The physics engi
       "heatmap_geojson": { /* optional GeoJSON FeatureCollection of probability cells */ }
     }
   ],
+  "engagement_zones": [
+    {
+      "classification": "clear",
+      "start_index": 0,
+      "end_index": 8,
+      "start_distance_m": 0,
+      "end_distance_m": 4000,
+      "start_lat": 48.3794,
+      "start_lon": 31.1656,
+      "end_lat": 48.4158,
+      "end_lon": 31.1023,
+      "peak_expected_casualties": 0.031,
+      "mean_expected_casualties": 0.018,
+      "population_in_zone": 12.5,
+      "reasons": ["Low civilian risk; peak population 12 within frag radius"]
+    },
+    {
+      "classification": "no_go",
+      "start_index": 30,
+      "end_index": 38,
+      "start_distance_m": 15000,
+      "end_distance_m": 19000,
+      "start_lat": 48.5142,
+      "start_lon": 30.9834,
+      "end_lat": 48.5506,
+      "end_lon": 30.9201,
+      "peak_expected_casualties": 2.41,
+      "mean_expected_casualties": 1.83,
+      "population_in_zone": 340.0,
+      "reasons": [
+        "Dense population: up to 340 persons within frag radius",
+        "Expected casualties 2.410 exceed no-go threshold (1.0)"
+      ]
+    }
+  ],
   "metadata": {
     "n_trajectory_points": 45,
     "n_monte_carlo_samples": 10000,
     "simulation_time_ms": 284,
     "population_dataset": "kontur-2023-h3-r8",
-    "infrastructure_dataset": "osm-ukraine-2024-03"
+    "infrastructure_dataset": "osm-ukraine-2024-03",
+    "n_points_skipped": 18,
+    "n_points_dense": 42
   }
 }
 ```
@@ -138,6 +175,9 @@ Altitudes are **metres above mean sea level (MSL)** in the API. The physics engi
 | `impact_ellipse` | 90 % confidence ellipse for debris impact distribution for this mode |
 | `heatmap_geojson` | Optional per-cell impact probability (H3 resolution 9, ~150 m cells). Returned only if `include_heatmap: true` in request |
 | `reasoning` | Short human-readable explanation of why this point is recommended (generated from rules, not LLM) |
+| `engagement_zones` | List of contiguous trajectory stretches classified as `clear`, `caution`, or `no_go` with population and casualty data |
+| `n_points_skipped` | Number of trajectory points skipped (empty population) in adaptive resolution. Null for short trajectories |
+| `n_points_dense` | Number of dense evaluation points interpolated in high-risk zones. Null for short trajectories |
 
 ---
 
@@ -146,7 +186,7 @@ Altitudes are **metres above mean sea level (MSL)** in the API. The physics engi
 ```json
 {
   "batch_id": "string",
-  "status": "complete | processing | failed",
+  "status": "complete | processing | partial | failed",
   "completed_at_utc": "2024-03-15T14:22:05Z",
   "results": [ /* array of single-drone output objects */ ],
   "errors": [

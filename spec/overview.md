@@ -27,7 +27,8 @@ The initial focus is on **Shahed-136 / Geran-2** loitering munitions — the mos
 | Fixed 50 % P_kill | Missile-type-specific P_kill |
 | Single + batch REST API | Real-time tracker integration |
 | Shahed-136 aerodynamic parameters | Other airframe types |
-| Ukraine as primary data use case | Dashboard / UI |
+| Ukraine as primary data use case | — |
+| Streamlit dashboard (trajectory viz, engagement zones) | — |
 
 Everything out of scope for v1 is tracked on the [roadmap](roadmap.md).
 

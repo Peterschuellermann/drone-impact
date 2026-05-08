@@ -91,7 +91,7 @@ At 300 m AGL → 1,500 m range
 At 500 m AGL → 2,500 m range
 
 **Stochastic elements** (Monte Carlo perturbations per sample):
-- Heading perturbation: σ_heading ~ N(0, 15°) — control surfaces may be partially damaged
+- Heading perturbation: σ_heading ~ N(0, 5°) — control surfaces may be partially damaged
 - Glide ratio perturbation: σ_LoverD ~ N(5, 0.8) — structural damage affects aerodynamics
 - Speed at intercept: sampled from N(v_cruise, 5 m/s)
 
@@ -105,40 +105,34 @@ y_impact = R_glide * cos(heading + δ_heading)
 
 ---
 
-### M2 — Loss of Control (Erratic Powered Flight)
+### M2 — Loss of Control (Two-Phase Model)
 
-Guidance or avionics are destroyed. Engine continues running. The drone may pitch, roll, or yaw unpredictably before impacting.
+Guidance or avionics are destroyed. The engine may continue running for a time before the drone transitions to a ballistic tumble. This is modelled as a two-phase simulation.
 
-**Assumptions:**
-- Drone remains powered for 1–10 seconds after hit (sampled uniformly)
-- During powered phase: random angular rates applied
-- After power loss or impact with ground: enters tumbling ballistic
+**Phase 1 — Powered drift:**
+- Engine running at cruise speed with a constant descent rate (1.5 m/s)
+- Heading drifts as Brownian motion: per-step perturbation ~ N(0, σ_turn × √dt), where σ_turn = 15°/s
+- Initial heading perturbation: N(heading, 30°)
+- Duration: T_power ~ Uniform(1, 10) s per sample
+
+**Phase 2 — Ballistic tumble:**
+- Engine off; velocity initialised from final powered-flight state
+- Gravity and aerodynamic drag (using altitude-corrected air density) decelerate the fragment
+- Uses the same drag model as M3: C_d × A / m from the Shahed-136 airframe params
+- Terminates on ground impact (altitude ≤ 0)
+
+**Integration:**
+- Timestep: dt = 1.0 s (configurable via `m2_dt_s`)
+- Maximum simulation time: 300 s (configurable via `m2_max_time_s`)
+- All N samples are vectorised (batch array operations per timestep)
+- First-order Euler integration; acceptable for the coarse stochastic model
 
 **Stochastic elements:**
-- Power duration: T_power ~ Uniform(1, 10) s
-- Angular rates: ω_roll ~ N(0, 30°/s), ω_pitch ~ N(0, 20°/s), ω_yaw ~ N(0, 45°/s)
-- Integration timestep: 0.1 s
+- Power duration: T_power ~ Uniform(m2_power_duration_min_s, m2_power_duration_max_s)
+- Initial heading: N(heading, m2_sigma_init_deg)
+- Heading drift: Brownian motion with σ_turn = m2_sigma_turn_deg_per_s
 
-**Simplified integration (per timestep dt):**
-```
-heading += ω_yaw * dt
-pitch   += ω_pitch * dt
-speed   += drag_deceleration * dt
-
-vx = speed * sin(heading) * cos(pitch)
-vy = speed * cos(heading) * cos(pitch)
-vz += speed * sin(pitch) * dt - g * dt   # track vertical velocity as state
-
-x += vx * dt
-y += vy * dt
-z += vz * dt
-```
-
-Initialise `vz = 0` at intercept. Terminate when z ≤ terrain elevation.
-
-**Note:** This is a first-order Euler integration. Acceptable for the coarse stochastic model; do not rely on individual sample trajectories being physically precise.
-
-**Expected footprint shape:** Wide, roughly circular distribution. Radius is sensitive to altitude and speed. At 400 m AGL and 51 m/s cruise, typical 90 % radius ≈ 1,500–2,500 m from engagement point.
+**Expected footprint shape:** Wide, roughly circular distribution. Radius is sensitive to altitude, speed, and powered-flight duration. At 400 m AGL and 51 m/s cruise, typical 90 % radius ≈ 1,500–2,500 m from engagement point.
 
 This mode produces the most dispersed impact distribution and hence the highest uncertainty in casualty estimates.
 
@@ -242,4 +236,4 @@ Monte Carlo samples are independent — parallelise across both samples and traj
 | DEM only (no buildings) | Cannot model shadowing by buildings | Low priority for open-country theatre |
 | No sheltering / building protection | All population assumed exposed outdoors; overestimates casualties 2–5× in urban areas | Add building-type sheltering factor in v2 |
 | No time-of-day factor | Population exposure varies dramatically (residential dense at night, commercial during day) | Add optional time-of-day input in v2 |
-| M2 vertical integration is approximate | Gravity not tracked as velocity state; vertical dynamics reset each timestep | Acceptable for v1; refine if M2 footprints look unrealistic |
+| M2 integration is 1st-order Euler at dt=1.0s | Larger timestep trades precision for speed; acceptable for stochastic model | Reduce dt if M2 footprints look unrealistic |

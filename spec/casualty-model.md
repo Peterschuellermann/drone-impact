@@ -74,7 +74,7 @@ Pr = 5 - 5.74 * ln(r / W^(1/3))
 P  = Φ(Pr - 5)   [standard normal CDF]
 ```
 
-**Simplification for v1:** A simpler stepped function is acceptable:
+**Implementation:** A stepped function with configurable bands:
 
 ```
 P_blast(r) =
@@ -85,7 +85,7 @@ P_blast(r) =
   0.00   if r ≥ 80 m
 ```
 
-These thresholds should be stored as configurable parameters, not hard-coded.
+These thresholds are configurable via `blast_bands` in `config.yaml`. See **Configurable Multi-Band Mechanism** below.
 
 ---
 
@@ -147,6 +147,39 @@ P_frag(r) =
   0.02   if 200 ≤ r < 400 m
   0.00   if r ≥ 400 m
 ```
+
+---
+
+## Configurable Multi-Band Mechanism
+
+Both blast and fragmentation use a **configurable band system** in `config.yaml`. Each band defines a radius and a casualty probability:
+
+```yaml
+blast_bands:
+  - {radius_m: 5, probability: 1.00}
+  - {radius_m: 15, probability: 0.50}
+  - {radius_m: 35, probability: 0.10}
+  - {radius_m: 80, probability: 0.01}
+
+frag_bands:
+  - {radius_m: 20, probability: 1.00}
+  - {radius_m: 80, probability: 0.30}
+  - {radius_m: 200, probability: 0.10}
+  - {radius_m: 400, probability: 0.02}
+```
+
+When bands are configured, the `CasualtyEngine._compute_banded()` method:
+
+1. Collects all unique radii from both band sets
+2. Queries cumulative population at each radius via `PopulationIndex.query_batch()`
+3. For each annular ring, computes the mid-point distance to determine which band applies
+4. Combines blast and fragmentation probabilities via the union formula: `P = 1 - (1-P_blast)(1-P_frag)`
+5. Sums `ring_population × P_combined` across all rings
+6. Applies infrastructure penalty multiplier
+
+If bands are not configured, the engine falls back to a legacy four-zone model using `blast.lethal_radius_m`, `blast.injury_radius_m`, `fragmentation.lethal_radius_m`, and `fragmentation.danger_radius_m`.
+
+The `CasualtyEngine` also exposes a `population` property providing direct access to the `PopulationIndex` for use by the scoring engine's population pre-scan.
 
 ---
 

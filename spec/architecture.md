@@ -40,10 +40,14 @@
                                                  ┌─────────────────────┐
                                                  │   Scoring Engine    │
                                                  │                     │
+                                                 │ - Pop pre-scan      │
+                                                 │ - Adaptive res.     │
+                                                 │ - Miss branch cache │
                                                  │ - E[casualties] per │
                                                  │   point and mode    │
                                                  │ - Engagement score  │
                                                  │ - Argmin → P*       │
+                                                 │ - Zone classif.     │
                                                  │ - Explainability    │
                                                  └─────────────────────┘
 
@@ -138,7 +142,7 @@ def compute_casualties(impact_points_wgs84: np.ndarray) -> np.ndarray:
     return weighted_pop * (1.0 + infra_penalties)
 ```
 
-**Population index:** Backed by a dictionary `h3_cell → population_count` (persons per cell), with `k_ring` for neighbourhood queries. Storing counts rather than density avoids per-cell area errors when summing across H3 cells at different latitudes. For batch queries, vectorise the H3 lookups using a pre-built NumPy array indexed by H3 integer cell IDs.
+**Population index:** Backed by a dictionary `h3_cell → population_count` (persons per cell) at resolution 8 (~460 m cells), with `grid_disk` for neighbourhood queries. Storing counts rather than density avoids per-cell area errors when summing across H3 cells at different latitudes. The `query_batch(lats, lons, radius_m)` method computes the disk size from the edge length and sums population in all cells within the radius. The `PopulationIndex` is accessible from `CasualtyEngine` via a `population` property for use in the scoring engine's population pre-scan.
 
 **Infrastructure index:** R-tree (shapely `STRtree`) for fast nearest-neighbour queries. Pre-compute per-category maximum search radius to bound the query.
 
@@ -230,6 +234,26 @@ physics:
     glide_ratio: 5.0
     drag_coeff_tumbling: 0.8
     reference_area_m2: 3.5
+    fragment_reference_area_m2: 0.5
+    fragment_mass_mean_kg: 50.0
+    fragment_mass_std_kg: 10.0
+  m1_sigma_heading_deg: 5.0
+  m1_sigma_glide_ratio: 0.8
+  m2_sigma_init_deg: 30.0
+  m2_sigma_turn_deg_per_s: 15.0
+  m2_dt_s: 1.0
+  m2_max_time_s: 300.0
+  m2_descent_rate_m_s: 1.5
+  m2_power_duration_min_s: 1.0
+  m2_power_duration_max_s: 10.0
+  m3_heading_spread_deg: 60.0
+  m3_sigma_speed_m_s: 10.0
+  m3_speed_reduction_factor: 0.7
+  m3_sigma_cd: 0.15
+  m3_dt_s: 0.1
+  m3_max_steps: 1000
+  m3_pitch_range_deg: 20.0
+  atmosphere_scale_height_m: 8500.0
 
 engagement:
   p_kill: 0.50
@@ -247,11 +271,26 @@ casualty:
     tnt_equivalent_kg: 30.0
     lethal_radius_m: 5.0
     injury_radius_m: 80.0
+    p_lethal: 0.9
+    p_injury: 0.3
   fragmentation:
     lethal_radius_m: 200.0
     danger_radius_m: 400.0
+    p_frag_lethal: 0.5
+    p_frag_danger: 0.1
+  blast_bands:
+    - {radius_m: 5, probability: 1.00}
+    - {radius_m: 15, probability: 0.50}
+    - {radius_m: 35, probability: 0.10}
+    - {radius_m: 80, probability: 0.01}
+  frag_bands:
+    - {radius_m: 20, probability: 1.00}
+    - {radius_m: 80, probability: 0.30}
+    - {radius_m: 200, probability: 0.10}
+    - {radius_m: 400, probability: 0.02}
   infrastructure:
     penalty_radius_m: 500.0
+    max_penalty: 10.0
     weights:
       power_plant: 5.0
       hospital: 4.0
@@ -259,10 +298,25 @@ casualty:
       bridge: 3.0
       school: 2.0
 
+scoring:
+  population_empty_threshold: 0.0
+  population_high_risk_threshold: 50.0
+  dense_spacing_m: 50.0
+  miss_cache_agl_round_m: 10.0
+  miss_cache_heading_round_deg: 1.0
+  zone_caution_threshold: 0.1
+  zone_nogo_threshold: 1.0
+
 data:
   population_path: "./data/kontur_ukraine.gpkg"
   dem_path: "./data/ukraine_dem.tif"
   infrastructure_path: "./data/ukraine_infra.geojson"
+
+dashboard:
+  api_endpoint: "http://localhost:8000"
+  default_max_range_m: 250000
+  default_evaluation_spacing_m: 500
+  cache_ttl_sec: 300
 ```
 
 ---
@@ -308,6 +362,6 @@ Single worker (uvicorn). Async FastAPI handles concurrent requests. Physics engi
 |---|---|
 | Wind/weather | Add atmospheric data loading at startup; pass wind vector to physics engine |
 | ML trajectory model | Add new trajectory-prediction module; plug in before Monte Carlo |
-| Dashboard | Add separate frontend service; expose read-only event log API |
+| Dashboard | Streamlit dashboard implemented; connects to API for trajectory visualization and zone display |
 | Historical data DB | Add PostGIS for storing impact events; separate ingestion service |
 | Real-time tracker integration | Add WebSocket endpoint or gRPC stream; out of scope for v1 |
