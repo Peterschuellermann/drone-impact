@@ -29,8 +29,10 @@ droneimpact/
 │   ├── unit/           # Isolated function-level tests
 │   ├── integration/    # Component interaction tests
 │   └── performance/    # Latency budget assertions
+├── scripts/        # Data download and preprocessing
 ├── data/           # Runtime data files (gitignored — see Data Setup below)
 ├── config.yaml     # Tunable parameters (physics constants, mode weights, radii)
+├── pyproject.toml  # Project metadata and dependencies
 ├── CLAUDE.md       # Agent development workflow
 └── README.md       # This file
 ```
@@ -85,7 +87,12 @@ DroneImpact requires three external datasets loaded at startup. These are not in
 | [SRTM / Copernicus DEM](https://earthexplorer.usgs.gov) | NASA/USGS (public domain) | Terrain elevation for MSL-to-AGL conversion |
 | [OpenStreetMap Ukraine](https://download.geofabrik.de/europe/ukraine.html) | Geofabrik (ODbL 1.0) | Critical infrastructure locations |
 
-Place pre-processed files in `data/`:
+Run the download and preprocessing script:
+```bash
+./scripts/download_data.sh
+```
+
+This downloads all three datasets and produces the required files in `data/`:
 ```
 data/kontur_ukraine.gpkg
 data/ukraine_dem.tif
@@ -95,7 +102,7 @@ data/ukraine_infra.geojson
 ## Running
 
 ```bash
-pip install -r requirements.txt
+pip install .
 uvicorn src.droneimpact.main:app --host 0.0.0.0 --port 8080
 ```
 
@@ -134,7 +141,8 @@ The full system specification lives in [spec/](spec/):
 - [Engagement Model](spec/engagement-model.md) — P_kill, mode weights, scoring formula
 - [Data Sources](spec/data-sources.md) — Kontur, SRTM, OSM, ACLED, historical data
 - [Architecture](spec/architecture.md) — FastAPI, vectorised engine, tech stack
-- [Roadmap](spec/roadmap.md) — v2 (wind, sheltering), v3 (trajectory prediction), v4 (dashboard)
+- [Assumptions](spec/assumptions.md) — physical estimates, expert consultation questions
+- [Roadmap](spec/roadmap.md) — v2 (visualization), v3 (environmental refinement), v4 (manoeuvre prediction), v5 (dashboard)
 
 ## Licence
 
