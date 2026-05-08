@@ -6,7 +6,7 @@ Implementation agent: pick the first `[ ]` plan whose dependencies are all `[x]`
 
 | Status | ID | Plan | Dependencies |
 |---|---|---|---|
-| [ ] | F01 | [Project Scaffold](F01-project-scaffold.md) | — |
+| [x] | F01 | [Project Scaffold](F01-project-scaffold.md) | — |
 | [ ] | F02 | [Coordinate Utilities + Trajectory Discretisation](F02-coordinate-utilities.md) | F01 |
 | [ ] | F03 | [DEM Module](F03-dem-module.md) | F01 |
 | [ ] | F04 | [Physics Engine — Mode M1 Propulsion Loss](F04-physics-m1.md) | F01, F02, F03 |
