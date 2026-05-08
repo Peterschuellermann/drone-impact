@@ -304,3 +304,73 @@ def make_stats_panel(result: dict) -> str:
     ])
 
     return "\n".join(lines)
+
+
+BATCH_PALETTE = [
+    "#3b82f6", "#ef4444", "#22c55e", "#f59e0b", "#8b5cf6",
+    "#ec4899", "#06b6d4", "#84cc16", "#f97316", "#6366f1",
+    "#14b8a6", "#e11d48", "#a855f7", "#0ea5e9", "#d946ef",
+    "#10b981", "#f43f5e", "#7c3aed", "#0891b2", "#65a30d",
+]
+
+
+def _drone_colour(index: int) -> str:
+    return BATCH_PALETTE[index % len(BATCH_PALETTE)]
+
+
+def make_batch_map(batch_result: dict) -> folium.Map:
+    results = batch_result.get("results", [])
+    if not results:
+        return folium.Map(location=[48.5, 35.0], zoom_start=6)
+
+    all_lats, all_lons = [], []
+    m = folium.Map(tiles="OpenStreetMap")
+
+    for i, drone_result in enumerate(results):
+        colour = _drone_colour(i)
+        drone_id = drone_result.get("drone_id") or f"Drone {i + 1}"
+        scores = drone_result["trajectory_scores"]
+        rec = drone_result["recommended_engagement"]
+
+        group = folium.FeatureGroup(name=drone_id, show=True)
+
+        coords = [[pt["lat"], pt["lon"]] for pt in scores]
+        if coords:
+            folium.PolyLine(coords, color=colour, weight=3, opacity=0.7).add_to(group)
+            all_lats.extend(pt["lat"] for pt in scores)
+            all_lons.extend(pt["lon"] for pt in scores)
+
+        folium.Marker(
+            [rec["lat"], rec["lon"]],
+            icon=folium.Icon(color="red", icon="star", prefix="fa"),
+            tooltip=f"{drone_id} — Casualties: {rec['expected_casualties']:.3f}",
+        ).add_to(group)
+
+        group.add_to(m)
+
+    folium.LayerControl().add_to(m)
+
+    if all_lats:
+        m.fit_bounds([
+            [min(all_lats) - 0.05, min(all_lons) - 0.05],
+            [max(all_lats) + 0.05, max(all_lons) + 0.05],
+        ])
+
+    return m
+
+
+def make_priority_table(batch_result: dict) -> list[dict]:
+    results = batch_result.get("results", [])
+    rows = []
+    for i, dr in enumerate(results):
+        rec = dr["recommended_engagement"]
+        rows.append({
+            "drone_id": dr.get("drone_id") or f"Drone {i + 1}",
+            "expected_casualties": round(rec["expected_casualties"], 4),
+            "engagement_score": round(rec["engagement_score"], 4),
+            "recommended_distance_m": round(rec["distance_from_current_m"], 0),
+            "lat": round(rec["lat"], 5),
+            "lon": round(rec["lon"], 5),
+        })
+    rows.sort(key=lambda r: r["expected_casualties"], reverse=True)
+    return rows

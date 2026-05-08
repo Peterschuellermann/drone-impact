@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import time
 
 import httpx
 
@@ -21,6 +22,47 @@ def call_api(drone_state: dict) -> dict:
     )
     response.raise_for_status()
     return response.json()
+
+
+SYNC_THRESHOLD = 5
+
+
+def call_batch_api(
+    drones: list[dict],
+    on_progress: callable | None = None,
+    timeout_s: float = 120.0,
+) -> dict:
+    endpoint = get_api_endpoint()
+    force_async = len(drones) > SYNC_THRESHOLD
+    payload = {"drones": drones, "async": force_async}
+
+    response = httpx.post(
+        f"{endpoint}/analyze/batch",
+        json=payload,
+        timeout=timeout_s,
+    )
+    response.raise_for_status()
+    data = response.json()
+
+    if data.get("status") != "processing":
+        return data
+
+    batch_id = data["batch_id"]
+    deadline = time.monotonic() + timeout_s
+    while time.monotonic() < deadline:
+        time.sleep(2.0)
+        poll = httpx.get(
+            f"{endpoint}/analyze/batch/{batch_id}",
+            timeout=30.0,
+        )
+        poll.raise_for_status()
+        poll_data = poll.json()
+        if on_progress:
+            on_progress(poll_data.get("status", "processing"))
+        if poll_data.get("status") != "processing":
+            return poll_data
+
+    raise TimeoutError(f"Batch {batch_id} did not complete within {timeout_s}s")
 
 
 def format_casualties(num: float) -> str:

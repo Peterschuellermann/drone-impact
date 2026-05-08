@@ -41,7 +41,7 @@ Implementation agent: pick the first `[ ]` plan whose dependencies are all `[x]`
 | Status | ID | Plan | Dependencies |
 |---|---|---|---|
 | [x] | F15 | [Data Visualization Dashboard](F15-data-visualization-dashboard.md) | F12 |
-| [ ] | F16 | [Batch Visualization](F16-batch-visualization.md) | F15, F13 |
+| [x] | F16 | [Batch Visualization](F16-batch-visualization.md) | F15, F13 |
 | [ ] | F17 | [Trajectory Animation](F17-trajectory-animation.md) | F15 |
 | [ ] | F18 | [Docker Compose Deployment](F18-docker-compose.md) | F15 |
 
