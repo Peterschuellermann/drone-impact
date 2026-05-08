@@ -27,6 +27,7 @@ physics:
   m3_dt_s: 0.1
   m3_max_steps: 1000
   m3_pitch_range_deg: 20.0
+  atmosphere_scale_height_m: 8500.0
 
 engagement:
   p_kill: 0.50

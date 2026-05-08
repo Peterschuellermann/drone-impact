@@ -63,16 +63,20 @@ def simulate_m3(
     alt = np.full(n_samples, altitude_agl_m, dtype=np.float64)
     alive = alt > 0
 
-    half_rho_A = 0.5 * _RHO * shahed.fragment_reference_area_m2
-    drag_per_mass = half_rho_A * cd_samples / mass_samples  # (N,) coefficient
+    # Pre-factor that is constant across timesteps; density is applied per step.
+    half_A_cd_over_m = 0.5 * shahed.fragment_reference_area_m2 * cd_samples / mass_samples
+    scale_height = config.atmosphere_scale_height_m
 
     for _ in range(config.m3_max_steps):
         if not np.any(alive):
             break
 
+        # Altitude-dependent air density: exponential atmosphere model
+        rho = _RHO * np.exp(-alt / scale_height)
+
         spd = np.sqrt(v_east ** 2 + v_north ** 2 + v_vert ** 2)
 
-        a_drag = drag_per_mass * spd  # per-axis drag acceleration magnitude / velocity component
+        a_drag = half_A_cd_over_m * rho * spd
 
         v_east -= alive * a_drag * v_east * dt
         v_north -= alive * a_drag * v_north * dt
