@@ -25,7 +25,7 @@ This document catalogues the external data sources required for DroneImpact, the
 
 **Integration:**
 - Download Ukraine country extract or clip global file to bounding box
-- Load into H3 cell lookup: `h3_index → population_per_km²`
+- Load into H3 cell lookup: `h3_index → population_count` (persons per cell)
 - For the casualty integration radius (≤ 400 m), at most ~6–8 H3 resolution-9 cells need to be queried per impact point
 - Use H3 `k_ring(cell, radius_cells)` for fast neighbourhood queries
 

@@ -138,7 +138,7 @@ def compute_casualties(impact_points_wgs84: np.ndarray) -> np.ndarray:
     return weighted_pop * (1.0 + infra_penalties)
 ```
 
-**Population index:** Backed by a dictionary `h3_cell → population_per_km²`, with `k_ring` for neighbourhood queries. For batch queries, vectorise the H3 lookups using a pre-built NumPy array indexed by H3 integer cell IDs.
+**Population index:** Backed by a dictionary `h3_cell → population_count` (persons per cell), with `k_ring` for neighbourhood queries. Storing counts rather than density avoids per-cell area errors when summing across H3 cells at different latitudes. For batch queries, vectorise the H3 lookups using a pre-built NumPy array indexed by H3 integer cell IDs.
 
 **Infrastructure index:** R-tree (shapely `STRtree`) for fast nearest-neighbour queries. Pre-compute per-category maximum search radius to bound the query.
 

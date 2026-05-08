@@ -192,13 +192,13 @@ UNOSAT (UN Satellite Centre) publishes damage and displacement assessments for U
 Pre-process population data into an **H3 spatial index at resolution 9** (~170 m cells):
 
 ```
-pop_density[h3_cell] = persons_per_km²
+pop_count[h3_cell] = persons_in_cell
 ```
 
 For a given impact point, compute expected exposed population by summing over cells within the casualty radius:
 
 ```
-E[exposed] = Σ_{cells c within R_max} P_casualty(dist(impact, c)) * pop_density[c] * area(c)
+E[exposed] = Σ_{cells c within R_max} P_casualty(dist(impact, c)) * pop_count[c]
 ```
 
 Where `R_max = 400 m` (beyond which P_casualty ≈ 0).
