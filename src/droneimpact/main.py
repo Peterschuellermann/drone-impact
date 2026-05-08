@@ -7,6 +7,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 
 from droneimpact.api.analyze import router as analyze_router
+from droneimpact.api.batch import JobStore, router as batch_router
 from droneimpact.api.health import router as health_router
 from droneimpact.config import load_config
 from droneimpact.data.dem import DEMIndex
@@ -25,6 +26,7 @@ async def lifespan(app: FastAPI):
     app.state.dem = None
     app.state.population = None
     app.state.infrastructure = None
+    app.state.job_store = JobStore()
 
     try:
         t0 = time.perf_counter()
@@ -63,6 +65,7 @@ def create_app() -> FastAPI:
     app = FastAPI(title="DroneImpact", version="1.0.0", lifespan=lifespan)
     app.include_router(health_router)
     app.include_router(analyze_router)
+    app.include_router(batch_router)
     return app
 
 

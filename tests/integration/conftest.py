@@ -4,6 +4,7 @@ from fastapi import FastAPI
 from httpx import ASGITransport, AsyncClient
 
 from droneimpact.api.analyze import router as analyze_router
+from droneimpact.api.batch import JobStore, router as batch_router
 from droneimpact.api.health import router as health_router
 from droneimpact.data.dem import DEMIndex
 from droneimpact.data.infrastructure import InfrastructureIndex
@@ -16,6 +17,7 @@ def build_test_app(config):
     app = FastAPI(title="DroneImpact-test")
     app.include_router(health_router)
     app.include_router(analyze_router)
+    app.include_router(batch_router)
 
     dem = DEMIndex.from_array(
         np.full((20, 20), 0.0, dtype=np.float32),
@@ -31,6 +33,7 @@ def build_test_app(config):
     app.state.infrastructure = infrastructure
     app.state.data_loaded = True
     app.state.population_cells = population.cell_count
+    app.state.job_store = JobStore()
 
     return app
 
