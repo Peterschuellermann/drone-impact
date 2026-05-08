@@ -10,17 +10,30 @@ Two agent types operate in this repository:
 
 ---
 
+## Concurrency — Git Worktrees
+
+Multiple agents work in this repository simultaneously. **Always use `git worktree`** to avoid conflicts:
+
+- Each agent works in its own worktree, never directly in the main working directory.
+- Create a worktree for each feature branch: `git worktree add ../droneimpact-<plan-id> -b feature/<plan-id>-<short-name> main`
+- After merging to main, remove the worktree: `git worktree remove ../droneimpact-<plan-id>`
+- Never run `git checkout` in the main working directory — use worktrees instead.
+- When using Claude Code's Agent tool, prefer `isolation: "worktree"` for implementation tasks.
+
+---
+
 ## Feature Development Workflow
 
 1. **Pick a plan:** Read `/plans/README.md`. Take the first `[ ] pending` plan whose dependencies are all `[x] done`.
-2. **Branch:** `git checkout -b feature/<plan-id>-<short-name>` from `main`.
-3. **Implement:** Follow the plan step by step. Make atomic commits as you go.
+2. **Worktree:** `git worktree add ../droneimpact-<plan-id> -b feature/<plan-id>-<short-name> main`
+3. **Implement:** Work in the worktree. Follow the plan step by step. Make atomic commits as you go.
 4. **Test:** Write unit and integration tests alongside or before code. All tests must pass before moving to the next step.
 5. **Verify:** Run `pytest` — zero failures required before merging.
 6. **Update spec:** If implementation differs from spec, update the relevant `/spec/` file.
 7. **Mark done:** Update plan status in `/plans/README.md` from `[ ]` to `[x]`.
-8. **Merge:** Squash the feature branch into one commit on `main`. Commit message: `feat(<id>): <plan title>`.
+8. **Merge:** From the main working directory: `git merge --squash feature/<plan-id>-<short-name>` then commit with message `feat(<id>): <plan title>`.
 9. **Push:** `git push origin main` — push immediately after the squash merge.
+10. **Cleanup:** `git worktree remove ../droneimpact-<plan-id>` and `git branch -d feature/<plan-id>-<short-name>`.
 
 ---
 
