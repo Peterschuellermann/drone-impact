@@ -117,6 +117,21 @@ class ScoringConfig(BaseModel):
     zone_nogo_threshold: float = 1.0
 
 
+class ScenarioTrajectory(BaseModel):
+    lat: float
+    lon: float
+    altitude_m: float
+    heading_deg: float
+    speed_m_s: float
+
+
+class ScenarioConfig(BaseModel):
+    name: str
+    description: str
+    trajectory: ScenarioTrajectory
+    max_range_m: int = 250_000
+
+
 class AppConfig(BaseModel):
     version: str
     physics: PhysicsConfig
@@ -124,6 +139,7 @@ class AppConfig(BaseModel):
     casualty: CasualtyConfig
     data: DataPaths
     scoring: ScoringConfig = ScoringConfig()
+    scenarios: list[ScenarioConfig] = []
 
 
 def load_config(path: str | Path = "config.yaml") -> AppConfig:

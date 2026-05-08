@@ -89,3 +89,64 @@ dashboard:
   default_max_range_m: 250000
   default_evaluation_spacing_m: 500
   cache_ttl_sec: 300
+
+scenarios:
+  - name: "Bryansk → Kyiv"
+    description: "Overland from Bryansk, Russia — long-range approach to Kyiv through low-density terrain"
+    trajectory:
+      lat: 52.0
+      lon: 33.5
+      altitude_m: 400
+      heading_deg: 230.0
+      speed_m_s: 51.4
+    max_range_m: 250000
+
+  - name: "Belgorod → Kharkiv"
+    description: "Short-range cross-border from Belgorod — urban impact within 80 km"
+    trajectory:
+      lat: 50.5
+      lon: 36.8
+      altitude_m: 400
+      heading_deg: 215.0
+      speed_m_s: 51.4
+    max_range_m: 100000
+
+  - name: "Crimea → Mykolaiv"
+    description: "Overland from northern Crimea through Kherson oblast toward Mykolaiv"
+    trajectory:
+      lat: 46.2
+      lon: 33.8
+      altitude_m: 400
+      heading_deg: 302.0
+      speed_m_s: 51.4
+    max_range_m: 200000
+
+  - name: "Rostov → Dnipro"
+    description: "East-to-west overland from Rostov — long flight over Zaporizhzhia oblast toward Dnipro"
+    trajectory:
+      lat: 48.0
+      lon: 38.0
+      altitude_m: 400
+      heading_deg: 283.0
+      speed_m_s: 51.4
+    max_range_m: 250000
+
+  - name: "Black Sea → Odesa"
+    description: "Maritime approach from the south — crosses coastline into dense port city of Odesa"
+    trajectory:
+      lat: 46.0
+      lon: 31.5
+      altitude_m: 400
+      heading_deg: 313.0
+      speed_m_s: 51.4
+    max_range_m: 150000
+
+  - name: "Black Sea → Kyiv"
+    description: "Long-range maritime launch — overflies Kherson and Mykolaiv oblasts then north to Kyiv"
+    trajectory:
+      lat: 45.5
+      lon: 32.0
+      altitude_m: 400
+      heading_deg: 349.0
+      speed_m_s: 51.4
+    max_range_m: 250000

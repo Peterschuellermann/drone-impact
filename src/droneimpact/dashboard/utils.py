@@ -1,10 +1,15 @@
 from __future__ import annotations
 
 import json
+import logging
 import os
 import time
+from pathlib import Path
 
 import httpx
+import yaml
+
+logger = logging.getLogger(__name__)
 
 
 def get_api_endpoint() -> str:
@@ -128,3 +133,44 @@ def export_geojson(result: dict) -> str:
 
     collection = {"type": "FeatureCollection", "features": features}
     return json.dumps(collection, indent=2)
+
+
+def load_scenarios(config_path: str | Path = "config.yaml") -> list[dict]:
+    """Load demo scenarios from config.
+
+    Returns list of dicts with keys: name, description, trajectory, max_range_m.
+    Each trajectory dict has: lat, lon, altitude_m, heading_deg, speed_m_s.
+    Returns an empty list if the config file is missing or has no scenarios.
+    """
+    path = Path(config_path)
+    if not path.exists():
+        logger.warning("Config file %s not found, no scenarios loaded", path)
+        return []
+
+    try:
+        with open(path) as f:
+            raw = yaml.safe_load(f)
+    except Exception:
+        logger.warning("Failed to parse config file %s", path, exc_info=True)
+        return []
+
+    scenarios_raw = raw.get("scenarios", [])
+    if not scenarios_raw:
+        return []
+
+    scenarios = []
+    for s in scenarios_raw:
+        scenarios.append({
+            "name": s["name"],
+            "description": s.get("description", ""),
+            "trajectory": {
+                "lat": s["trajectory"]["lat"],
+                "lon": s["trajectory"]["lon"],
+                "altitude_m": s["trajectory"]["altitude_m"],
+                "heading_deg": s["trajectory"]["heading_deg"],
+                "speed_m_s": s["trajectory"]["speed_m_s"],
+            },
+            "max_range_m": s.get("max_range_m", 250_000),
+        })
+
+    return scenarios

@@ -15,7 +15,7 @@ from droneimpact.dashboard.components import (
     make_trajectory_map,
     prepare_animation_frames,
 )
-from droneimpact.dashboard.utils import call_api, call_batch_api, export_geojson
+from droneimpact.dashboard.utils import call_api, call_batch_api, export_geojson, load_scenarios
 
 st.set_page_config(page_title="DroneImpact", layout="wide")
 
@@ -25,20 +25,55 @@ page = st.sidebar.radio("Mode", ["Single Drone", "Batch Analysis"])
 def _render_single_drone():
     st.title("DroneImpact — Single Drone Analysis")
 
+    scenarios = load_scenarios()
+    scenario_names = [s["name"] for s in scenarios] + ["Custom"]
+    scenario_map = {s["name"]: s for s in scenarios}
+
     with st.sidebar:
+        st.header("Demo Scenarios")
+        selected_scenario = st.selectbox(
+            "Select Scenario",
+            scenario_names,
+            index=len(scenario_names) - 1,
+            key="scenario_select",
+        )
+
+        is_scenario = selected_scenario != "Custom"
+        auto_submit = False
+
+        if is_scenario:
+            sc = scenario_map[selected_scenario]
+            st.caption(sc["description"])
+            traj = sc["trajectory"]
+            default_lat = traj["lat"]
+            default_lon = traj["lon"]
+            default_alt = traj["altitude_m"]
+            default_hdg = traj["heading_deg"]
+            default_spd = traj["speed_m_s"]
+            default_range_km = sc["max_range_m"] // 1000
+            auto_submit = True
+        else:
+            default_lat = 48.5
+            default_lon = 35.0
+            default_alt = 500.0
+            default_hdg = 270.0
+            default_spd = 51.4
+            default_range_km = 250
+
+        st.divider()
         st.header("Drone State")
-        lat = st.number_input("Latitude", value=48.5, min_value=-90.0, max_value=90.0, format="%.5f")
-        lon = st.number_input("Longitude", value=35.0, min_value=-180.0, max_value=180.0, format="%.5f")
-        altitude_m = st.number_input("Altitude (m)", value=500.0, min_value=1.0, max_value=10000.0)
-        heading_deg = st.number_input("Heading (deg)", value=270.0, min_value=0.0, max_value=359.9)
-        speed_m_s = st.number_input("Speed (m/s)", value=51.4, min_value=20.0, max_value=300.0)
+        lat = st.number_input("Latitude", value=default_lat, min_value=-90.0, max_value=90.0, format="%.5f")
+        lon = st.number_input("Longitude", value=default_lon, min_value=-180.0, max_value=180.0, format="%.5f")
+        altitude_m = st.number_input("Altitude (m)", value=default_alt, min_value=1.0, max_value=10000.0)
+        heading_deg = st.number_input("Heading (deg)", value=default_hdg, min_value=0.0, max_value=359.9)
+        speed_m_s = st.number_input("Speed (m/s)", value=default_spd, min_value=20.0, max_value=300.0)
 
         st.divider()
         st.subheader("Analysis Parameters")
         evaluation_spacing_m = st.slider("Evaluation spacing (m)", 100, 5000, 500, step=100)
-        max_range_m = st.slider("Max range (km)", 1, 500, 250) * 1000
+        max_range_m = st.slider("Max range (km)", 1, 500, default_range_km) * 1000
 
-        analyze_btn = st.button("Analyze", type="primary", use_container_width=True)
+        analyze_btn = st.button("Analyze", type="primary", use_container_width=True) or auto_submit
 
     @st.cache_data(ttl=300, show_spinner=False)
     def _cached_api_call(lat, lon, altitude_m, heading_deg, speed_m_s, _spacing, _range):
