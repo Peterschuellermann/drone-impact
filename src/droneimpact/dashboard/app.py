@@ -82,7 +82,7 @@ def _render_single_drone():
         evaluation_spacing_m = st.slider("Evaluation spacing (m)", 100, 5000, 500, step=100)
         max_range_m = st.slider("Max range (km)", 1, 500, default_range_km) * 1000
 
-        analyze_btn = st.button("Analyze", type="primary", use_container_width=True) or auto_submit
+        analyze_btn = st.button("Analyze", type="primary", width="stretch") or auto_submit
 
     @st.cache_data(ttl=300, show_spinner=False)
     def _cached_api_call(lat, lon, altitude_m, heading_deg, speed_m_s, _spacing, _range):
@@ -117,7 +117,7 @@ def _render_single_drone():
                 result["trajectory_scores"],
                 result.get("risk_zones", []),
             )
-            st_folium(traj_map, use_container_width=True, height=600)
+            st_folium(traj_map, width="stretch", height=600, returned_objects=[])
 
             # --- Interactive point inspection ---
             scores = result["trajectory_scores"]
@@ -165,17 +165,17 @@ def _render_single_drone():
                         tooltip="Selected point",
                     ).add_to(fallout_map)
                     add_fallout_overlay(fallout_map, impact_data)
-                    st_folium(fallout_map, use_container_width=True, height=450)
+                    st_folium(fallout_map, width="stretch", height=450, returned_objects=[])
 
                     st.markdown(make_point_detail_panel(selected_pt, impact_data))
                 except Exception as e:
                     st.warning(f"Could not load point impact data: {e}")
 
         with tab_impact:
-            st.plotly_chart(make_impact_scatter(result), use_container_width=True)
+            st.plotly_chart(make_impact_scatter(result), width="stretch")
 
         with tab_risk:
-            st.plotly_chart(make_risk_profile(result), use_container_width=True)
+            st.plotly_chart(make_risk_profile(result), width="stretch")
 
         with tab_stats:
             st.markdown(make_stats_panel(result))
@@ -207,7 +207,7 @@ def _render_single_drone():
                     radius=10, color=frame["colour"], fill=True,
                     fill_opacity=1.0, weight=3,
                 ).add_to(coloured_map)
-                st_folium(coloured_map, use_container_width=True, height=450)
+                st_folium(coloured_map, width="stretch", height=450, returned_objects=[])
 
             with col_stats:
                 is_rec = frame["is_recommended"]
@@ -255,11 +255,11 @@ def _render_batch():
         st.error("All drones failed. Check the API and retry.")
         return
 
-    st_folium(make_batch_map(batch_result), use_container_width=True, height=500)
+    st_folium(make_batch_map(batch_result), width="stretch", height=500, returned_objects=[])
 
     st.subheader("Priority Ranking")
     rows = make_priority_table(batch_result)
-    st.dataframe(rows, use_container_width=True, hide_index=True)
+    st.dataframe(rows, width="stretch", hide_index=True)
 
     st.subheader("Drill-Down")
     drone_ids = [r.get("drone_id") or f"Drone {i + 1}" for i, r in enumerate(results)]
@@ -274,13 +274,13 @@ def _render_batch():
         ])
 
         with tab_map:
-            st_folium(make_trajectory_map(drone_result), use_container_width=True, height=500)
+            st_folium(make_trajectory_map(drone_result), width="stretch", height=500, returned_objects=[])
 
         with tab_impact:
-            st.plotly_chart(make_impact_scatter(drone_result), use_container_width=True)
+            st.plotly_chart(make_impact_scatter(drone_result), width="stretch")
 
         with tab_risk:
-            st.plotly_chart(make_risk_profile(drone_result), use_container_width=True)
+            st.plotly_chart(make_risk_profile(drone_result), width="stretch")
 
         with tab_stats:
             st.markdown(make_stats_panel(drone_result))

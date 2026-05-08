@@ -41,7 +41,7 @@ def _render_manual_input() -> list[dict] | None:
                 },
             })
 
-    if st.button("Analyze Batch", type="primary", use_container_width=True):
+    if st.button("Analyze Batch", type="primary", width="stretch"):
         return drones
     return None
 
@@ -75,7 +75,7 @@ def _render_csv_input() -> list[dict] | None:
         "alt": d["trajectory"]["altitude_m"],
     } for d in drones])
 
-    if st.button("Analyze Batch", type="primary", use_container_width=True):
+    if st.button("Analyze Batch", type="primary", width="stretch"):
         return drones
     return None
 
