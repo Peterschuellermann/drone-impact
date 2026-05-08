@@ -21,13 +21,13 @@ Implementation agent: pick the first `[ ]` plan whose dependencies are all `[x]`
 | [x] | F13 | [Batch REST API + Async Job Management](F13-api-batch.md) | F12 |
 | [x] | F14 | [Performance Benchmarks](F14-performance-benchmarks.md) | F12, F13 |
 
-## Version 2 — Dashboard & Operational Interface
+## Version 2 — Dashboard & Operational Hardening
 
 | Status | ID | Plan | Dependencies |
 |---|---|---|---|
 | [ ] | F15 | [Data Visualization Dashboard](F15-data-visualization-dashboard.md) | F12 |
 
-Additional v2 features (trajectory animation, real-time integration, multi-drone coordination) need plans. See `/spec/roadmap.md`.
+Additional v2 features (batch visualization, trajectory animation, country selector, API auth, request logging, Docker Compose) need plans. See `/spec/roadmap.md`.
 
 ## Version 3 — Environmental and Engagement Refinement
 
@@ -36,3 +36,7 @@ Planned after v2 is complete. Includes dashboard updates for new physics feature
 ## Version 4 — Manoeuvre Prediction and Data-Driven Model
 
 Planned after v3 is complete. Includes historical data dashboard and defence planning. See `/spec/roadmap.md`.
+
+## Version 5 — Real-Time Operations
+
+Planned after v4 is complete. Real-time WebSocket integration and multi-drone coordination. See `/spec/roadmap.md`.

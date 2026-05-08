@@ -29,9 +29,9 @@
 
 ---
 
-## Version 2 — Dashboard & Operational Interface
+## Version 2 — Dashboard & Operational Hardening
 
-**Goal:** Interactive dashboard for analysts and operators; real-time operational capabilities for live engagements.
+**Goal:** Interactive dashboard for analysts; batch visualization; operational readiness (auth, logging, deployment).
 
 ### Planned features
 
@@ -46,20 +46,40 @@
 - 5-minute response cache to avoid duplicate API calls during exploration
 - Degrades gracefully if API is unreachable
 
+**Batch visualization**
+- Dashboard view for `/analyze/batch` results: multiple trajectories on a single map
+- Priority ranking table: drones sorted by engagement urgency (highest expected casualties first)
+- Per-drone detail drill-down (reuses single-drone visualization components)
+- Comparison view: side-by-side statistics for selected drones
+
 **Trajectory animation**
 - Replay simulated drone flights on map
 - Colour-code trajectory by engagement score at each point
 - Mark optimal engagement point with annotation
 
-**Real-time integration**
-- WebSocket endpoint for live drone track input
-- Stream of engagement score updates as new position fixes arrive
-- Alert when engagement score crosses threshold
+**Country/region selector**
+- Dashboard sidebar dropdown to switch between loaded datasets (Kontur, DEM, OSM)
+- Demonstrates the country-agnostic data layer built in v1
+- Available regions detected from files present in `data/`
 
-**Multi-drone coordination**
-- Handle swarm scenarios: multiple simultaneous drones
-- Allocate available interceptors to minimise total expected casualties
-- Assignment optimisation (linear assignment or greedy)
+**API key authentication**
+- API key via environment variable (`DRONEIMPACT_API_KEY`)
+- FastAPI middleware rejects requests without valid `X-API-Key` header
+- Dashboard sends key automatically from its config
+- Key requirement can be disabled for local development (`auth.enabled: false` in config)
+
+**Request logging and audit trail**
+- Structured JSON request/response logging via Python `logging` + middleware
+- Each request assigned a correlation ID (`X-Request-ID` header, auto-generated if absent)
+- Log: timestamp, endpoint, input summary, response status, simulation time, correlation ID
+- Audit log file configurable in `config.yaml` (default: `logs/audit.jsonl`)
+
+**Docker Compose deployment**
+- `docker-compose.yml` with two services: `api` (FastAPI on port 8000) and `dashboard` (Streamlit on port 8501)
+- Dashboard pre-configured to call API service by container name
+- Shared volume for `data/` directory
+- Environment variable pass-through for API key and config overrides
+- Single `docker compose up` starts the full stack
 
 ---
 
@@ -164,6 +184,29 @@
 - Input: set of defended assets (locations + priorities)
 - Output: recommended placement for air defence systems to maximise coverage of high-risk corridors
 - Approach: coverage optimisation over historical trajectory distribution
+
+---
+
+## Version 5 — Real-Time Operations
+
+**Goal:** Live engagement support — stream drone tracks in real time, coordinate multiple interceptors across simultaneous threats.
+
+### Planned features
+
+**Real-time integration**
+- WebSocket endpoint for live drone track input
+- Stream of engagement score updates as new position fixes arrive
+- Alert when engagement score crosses threshold
+
+**Multi-drone coordination**
+- Handle swarm scenarios: multiple simultaneous drones
+- Allocate available interceptors to minimise total expected casualties
+- Assignment optimisation (linear assignment or greedy)
+
+**Dashboard: real-time operations view**
+- Live map with moving drone icons and updating engagement scores
+- Alert panel for threshold crossings
+- Interceptor assignment overlay: which system is assigned to which drone
 
 ---
 
