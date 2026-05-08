@@ -26,6 +26,7 @@ def main(tile_dir: str, output_path: str) -> None:
         height=mosaic.shape[1],
         width=mosaic.shape[2],
         transform=transform,
+        BIGTIFF="YES",
         compress="deflate",
         predictor=2,
         tiled=True,
