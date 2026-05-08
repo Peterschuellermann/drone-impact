@@ -177,3 +177,38 @@ def test_banded_scales_with_population(config):
     eng_high = CasualtyEngine(PopulationIndex.from_dict(high_cells), infra, config.casualty)
     pts = np.tile(CENTRE, (100, 1)).astype(np.float64)
     assert eng_high.compute(pts) > eng_low.compute(pts)
+
+
+def test_banded_matches_twozone_when_configured_equivalently(config):
+    """Banded model with two-zone-equivalent bands should approximate the two-zone fallback."""
+    from droneimpact.config import CasualtyBand
+
+    blast = config.casualty.blast
+    frag = config.casualty.fragmentation
+
+    equivalent_bands = config.casualty.model_copy(update={
+        "blast_bands": [
+            CasualtyBand(radius_m=blast.lethal_radius_m, probability=blast.p_lethal),
+            CasualtyBand(radius_m=blast.injury_radius_m, probability=blast.p_injury),
+        ],
+        "frag_bands": [
+            CasualtyBand(radius_m=frag.lethal_radius_m, probability=frag.p_frag_lethal),
+            CasualtyBand(radius_m=frag.danger_radius_m, probability=frag.p_frag_danger),
+        ],
+    })
+    twozone_cfg = config.casualty.model_copy(update={
+        "blast_bands": None, "frag_bands": None,
+    })
+
+    cells = make_test_population(*CENTRE, pop_density=5000.0, radius_cells=5)
+    pop = PopulationIndex.from_dict(cells)
+    infra = _make_infra(config)
+
+    eng_banded = CasualtyEngine(pop, infra, equivalent_bands)
+    eng_twozone = CasualtyEngine(pop, infra, twozone_cfg)
+
+    pts = np.tile(CENTRE, (200, 1)).astype(np.float64)
+    banded_result = eng_banded.compute(pts)
+    twozone_result = eng_twozone.compute(pts)
+
+    assert banded_result == pytest.approx(twozone_result, rel=0.15)

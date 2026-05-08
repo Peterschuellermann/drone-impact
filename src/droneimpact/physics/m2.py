@@ -44,11 +44,12 @@ def simulate_m2(
         n_samples,
     )
 
-    # Ballistic drag: whole drone tumbles (full reference area, full mass)
-    half_rho_A_Cd_over_m = (
-        0.5 * _RHO * shahed.reference_area_m2
+    # Ballistic drag pre-factor (density applied per step)
+    half_A_Cd_over_m = (
+        0.5 * shahed.reference_area_m2
         * shahed.drag_coeff_tumbling / shahed.mass_kg
     )
+    scale_height = config.atmosphere_scale_height_m
 
     # Initial conditions -- all (N,) arrays
     hdg = np.radians(
@@ -96,8 +97,9 @@ def simulate_m2(
 
         # --- Phase 2: ballistic tumble ---
         if np.any(ballistic_alive):
+            rho = _RHO * np.exp(-alt / scale_height)
             spd = np.sqrt(v_east**2 + v_north**2 + v_vert**2)
-            a_drag = half_rho_A_Cd_over_m * spd  # drag deceleration magnitude
+            a_drag = half_A_Cd_over_m * rho * spd
 
             ba = ballistic_alive.astype(np.float64)
             v_east -= ba * a_drag * v_east * dt

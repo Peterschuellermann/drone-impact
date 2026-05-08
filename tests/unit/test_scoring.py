@@ -124,3 +124,62 @@ def test_trajectory_distances_ordered(scoring, short_trajectory, flat_dem, casua
 def test_empty_trajectory_raises(scoring, flat_dem, casualty_engine):
     with pytest.raises(ValueError, match="trajectory must not be empty"):
         scoring.score_trajectory([], flat_dem, casualty_engine, (48.1, 31.0))
+
+
+# --- Interpolation tests (I09) ---
+
+from droneimpact.physics.types import TrajectoryPoint
+from droneimpact.scoring.types import ModeScore, PointScore
+
+
+def _make_trajectory(n: int) -> list[TrajectoryPoint]:
+    return [
+        TrajectoryPoint(
+            index=i, lat=48.0, lon=31.0, altitude_m=400.0,
+            distance_from_start_m=i * 500.0,
+        )
+        for i in range(n)
+    ]
+
+
+def _make_point_score(pt: TrajectoryPoint, score: float) -> PointScore:
+    return PointScore(
+        point_index=pt.index, lat=pt.lat, lon=pt.lon,
+        altitude_m=pt.altitude_m,
+        distance_from_start_m=pt.distance_from_start_m,
+        expected_casualties=score, engagement_score=score,
+        breakdown={}, miss_branch_expected_casualties=0.0,
+    )
+
+
+def test_interpolation_preserves_scored_points():
+    traj = _make_trajectory(5)
+    scored = {i: _make_point_score(traj[i], float(i * 10)) for i in range(5)}
+    result = ScoringEngine._interpolate_scores(traj, scored, 0.0)
+    for i in range(5):
+        assert result[i] is scored[i]
+
+
+def test_interpolation_fills_gaps():
+    traj = _make_trajectory(10)
+    scored = {
+        0: _make_point_score(traj[0], 10.0),
+        5: _make_point_score(traj[5], 20.0),
+        9: _make_point_score(traj[9], 30.0),
+    }
+    result = ScoringEngine._interpolate_scores(traj, scored, 0.0)
+    for i in range(1, 5):
+        assert 10.0 < result[i].engagement_score < 20.0
+    for i in range(6, 9):
+        assert 20.0 < result[i].engagement_score < 30.0
+
+
+def test_interpolation_output_length():
+    for n in [1, 5, 20, 100]:
+        traj = _make_trajectory(n)
+        scored = {
+            0: _make_point_score(traj[0], 1.0),
+            n - 1: _make_point_score(traj[n - 1], 2.0),
+        }
+        result = ScoringEngine._interpolate_scores(traj, scored, 0.0)
+        assert len(result) == n

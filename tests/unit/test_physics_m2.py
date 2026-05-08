@@ -97,3 +97,13 @@ def test_m2_longer_power_gives_larger_range(config):
     short_range = float(np.sqrt((short_pts ** 2).sum(axis=1)).mean())
     long_range = float(np.sqrt((long_pts ** 2).sum(axis=1)).mean())
     assert long_range > short_range
+
+
+def test_m2_high_altitude_extends_range(config):
+    """Lower air density at altitude reduces drag, extending the ballistic range."""
+    n = 5000
+    low = simulate_m2(100.0, 0.0, 51.4, n, config.physics, rng=np.random.default_rng(99))
+    high = simulate_m2(2000.0, 0.0, 51.4, n, config.physics, rng=np.random.default_rng(99))
+    mean_low = float(np.sqrt((low ** 2).sum(axis=1)).mean())
+    mean_high = float(np.sqrt((high ** 2).sum(axis=1)).mean())
+    assert mean_high / mean_low > 1.1
