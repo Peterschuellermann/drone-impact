@@ -21,13 +21,14 @@ Implementation agent: pick the first `[ ]` plan whose dependencies are all `[x]`
 | [x] | F13 | [Batch REST API + Async Job Management](F13-api-batch.md) | F12 |
 | [x] | F14 | [Performance Benchmarks](F14-performance-benchmarks.md) | F12, F13 |
 
-## 1.1 — Dashboard & Operational Hardening
+## 1.1 — Dashboard & Deployment
 
 | Status | ID | Plan | Dependencies |
 |---|---|---|---|
 | [ ] | F15 | [Data Visualization Dashboard](F15-data-visualization-dashboard.md) | F12 |
-
-Additional 1.1 features (batch visualization, trajectory animation, country selector, API auth, request logging, Docker Compose) need plans. See `/spec/roadmap.md`.
+| [ ] | F16 | [Batch Visualization](F16-batch-visualization.md) | F15, F13 |
+| [ ] | F17 | [Trajectory Animation](F17-trajectory-animation.md) | F15 |
+| [ ] | F18 | [Docker Compose Deployment](F18-docker-compose.md) | F15 |
 
 ## 1.2 — Environmental and Engagement Refinement
 

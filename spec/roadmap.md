@@ -29,9 +29,9 @@
 
 ---
 
-## 1.1 — Dashboard & Operational Hardening
+## 1.1 — Dashboard & Deployment
 
-**Goal:** Interactive dashboard for analysts; batch visualization; operational readiness (auth, logging, deployment).
+**Goal:** Interactive dashboard for analysts with single-drone and batch visualization; Docker Compose deployment.
 
 ### Planned features
 
@@ -57,28 +57,11 @@
 - Colour-code trajectory by engagement score at each point
 - Mark optimal engagement point with annotation
 
-**Country/region selector**
-- Dashboard sidebar dropdown to switch between loaded datasets (Kontur, DEM, OSM)
-- Demonstrates the country-agnostic data layer built in 1.0
-- Available regions detected from files present in `data/`
-
-**API key authentication**
-- API key via environment variable (`DRONEIMPACT_API_KEY`)
-- FastAPI middleware rejects requests without valid `X-API-Key` header
-- Dashboard sends key automatically from its config
-- Key requirement can be disabled for local development (`auth.enabled: false` in config)
-
-**Request logging and audit trail**
-- Structured JSON request/response logging via Python `logging` + middleware
-- Each request assigned a correlation ID (`X-Request-ID` header, auto-generated if absent)
-- Log: timestamp, endpoint, input summary, response status, simulation time, correlation ID
-- Audit log file configurable in `config.yaml` (default: `logs/audit.jsonl`)
-
 **Docker Compose deployment**
 - `docker-compose.yml` with two services: `api` (FastAPI on port 8000) and `dashboard` (Streamlit on port 8501)
 - Dashboard pre-configured to call API service by container name
 - Shared volume for `data/` directory
-- Environment variable pass-through for API key and config overrides
+- Environment variable pass-through for config overrides
 - Single `docker compose up` starts the full stack
 
 ---
