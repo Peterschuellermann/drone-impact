@@ -10,12 +10,25 @@ Two agent types operate in this repository:
 
 ---
 
-## Concurrency — Git Worktrees
+## Concurrency
 
-Multiple agents work in this repository simultaneously. **Always use `git worktree`** to avoid conflicts:
+Multiple agents and people work in this repository simultaneously. Follow these rules to avoid conflicts:
 
-- Each agent works in its own worktree, never directly in the main working directory.
-- Create a worktree for each feature branch: `git worktree add ../droneimpact-<plan-id> -b feature/<plan-id>-<short-name> main`
+### Git Pull — Stay Up to Date
+
+- **Always `git pull origin main` before starting any work** — at the beginning of a session, before creating a branch, and before merging.
+- If you've been working for a while, pull again before merging to catch changes others have pushed.
+
+### Branching — Never Commit Directly to Main
+
+- **All work happens on branches**, never directly on `main`. This includes docs, spec changes, and fixes — not just features.
+- Branch naming: `feature/<plan-id>-<short-name>`, `fix/<description>`, or `docs/<description>`.
+- Merge to main via squash merge, then push.
+
+### Git Worktrees
+
+- Use `git worktree` so multiple branches can be worked on simultaneously without conflicts.
+- Create a worktree for each branch: `git worktree add ../droneimpact-<plan-id> -b feature/<plan-id>-<short-name> main`
 - After merging to main, remove the worktree: `git worktree remove ../droneimpact-<plan-id>`
 - Never run `git checkout` in the main working directory — use worktrees instead.
 - When using Claude Code's Agent tool, prefer `isolation: "worktree"` for implementation tasks.
@@ -24,16 +37,18 @@ Multiple agents work in this repository simultaneously. **Always use `git worktr
 
 ## Feature Development Workflow
 
-1. **Pick a plan:** Read `/plans/README.md`. Take the first `[ ] pending` plan whose dependencies are all `[x] done`.
-2. **Worktree:** `git worktree add ../droneimpact-<plan-id> -b feature/<plan-id>-<short-name> main`
-3. **Implement:** Work in the worktree. Follow the plan step by step. Make atomic commits as you go.
-4. **Test:** Write unit and integration tests alongside or before code. All tests must pass before moving to the next step.
-5. **Verify:** Run `pytest` — zero failures required before merging.
-6. **Update spec:** If implementation differs from spec, update the relevant `/spec/` file.
-7. **Mark done:** Update plan status in `/plans/README.md` from `[ ]` to `[x]`.
-8. **Merge:** From the main working directory: `git merge --squash feature/<plan-id>-<short-name>` then commit with message `feat(<id>): <plan title>`.
-9. **Push:** `git push origin main` — push immediately after the squash merge.
-10. **Cleanup:** `git worktree remove ../droneimpact-<plan-id>` and `git branch -d feature/<plan-id>-<short-name>`.
+1. **Pull latest:** `git pull origin main`
+2. **Pick a plan:** Read `/plans/README.md`. Take the first `[ ] pending` plan whose dependencies are all `[x] done`.
+3. **Worktree:** `git worktree add ../droneimpact-<plan-id> -b feature/<plan-id>-<short-name> main`
+4. **Implement:** Work in the worktree. Follow the plan step by step. Make atomic commits as you go.
+5. **Test:** Write unit and integration tests alongside or before code. All tests must pass before moving to the next step.
+6. **Verify:** Run `pytest` — zero failures required before merging.
+7. **Update spec:** If implementation differs from spec, update the relevant `/spec/` file.
+8. **Mark done:** Update plan status in `/plans/README.md` from `[ ]` to `[x]`.
+9. **Pull again:** `git pull origin main` — catch any changes pushed while you were working.
+10. **Merge:** From the main working directory: `git merge --squash feature/<plan-id>-<short-name>` then commit with message `feat(<id>): <plan title>`.
+11. **Push:** `git push origin main` — push immediately after the squash merge.
+12. **Cleanup:** `git worktree remove ../droneimpact-<plan-id>` and `git branch -d feature/<plan-id>-<short-name>`.
 
 ---
 
