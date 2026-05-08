@@ -115,3 +115,65 @@ def test_empty_impact_per_point_shape(empty_engine):
     pts = np.zeros((0, 2), dtype=np.float64)
     result = empty_engine.compute_per_point(pts)
     assert result.shape == (0,)
+
+
+# --- Banded model tests ---
+
+
+def _make_twozone_config(config):
+    """Return a CasualtyConfig with bands disabled (two-zone fallback)."""
+    return config.casualty.model_copy(update={"blast_bands": None, "frag_bands": None})
+
+
+@pytest.fixture
+def twozone_engine(config):
+    """Engine using the legacy two-zone model (no bands)."""
+    cells = make_test_population(*CENTRE, pop_density=5000.0, radius_cells=5)
+    pop = PopulationIndex.from_dict(cells)
+    casualty_cfg = _make_twozone_config(config)
+    infra = _make_infra(config)
+    return CasualtyEngine(pop, infra, casualty_cfg)
+
+
+def test_banded_empty_array(config):
+    """Banded model handles empty input."""
+    pop = PopulationIndex.from_dict({})
+    infra = _make_infra(config)
+    eng = CasualtyEngine(pop, infra, config.casualty)
+    pts = np.zeros((0, 2), dtype=np.float64)
+    result = eng.compute_per_point(pts)
+    assert result.shape == (0,)
+
+
+def test_banded_zero_pop(config):
+    """Banded model returns zero for unpopulated area."""
+    pop = PopulationIndex.from_dict({})
+    infra = _make_infra(config)
+    eng = CasualtyEngine(pop, infra, config.casualty)
+    pts = np.array([[48.0, 31.0]])
+    assert eng.compute(pts) == 0.0
+
+
+def test_banded_dtype(populated_engine):
+    """Banded model output has float64 dtype."""
+    pts = np.tile(CENTRE, (10, 1)).astype(np.float64)
+    result = populated_engine.compute_per_point(pts)
+    assert result.dtype == np.float64
+
+
+def test_twozone_fallback_when_bands_none(twozone_engine):
+    """With bands=None, engine falls back to the two-zone model."""
+    pts = np.tile(CENTRE, (100, 1)).astype(np.float64)
+    result = twozone_engine.compute(pts)
+    assert result > 0.0
+
+
+def test_banded_scales_with_population(config):
+    """Banded casualties scale with population density."""
+    low_cells = make_test_population(*CENTRE, pop_density=100.0, radius_cells=5)
+    high_cells = make_test_population(*CENTRE, pop_density=10000.0, radius_cells=5)
+    infra = _make_infra(config)
+    eng_low = CasualtyEngine(PopulationIndex.from_dict(low_cells), infra, config.casualty)
+    eng_high = CasualtyEngine(PopulationIndex.from_dict(high_cells), infra, config.casualty)
+    pts = np.tile(CENTRE, (100, 1)).astype(np.float64)
+    assert eng_high.compute(pts) > eng_low.compute(pts)
