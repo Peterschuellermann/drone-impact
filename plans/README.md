@@ -51,7 +51,7 @@ Implementation agent: pick the first `[ ]` plan whose dependencies are all `[x]`
 |---|---|---|---|
 | [x] | F19 | [Demo Scenarios](F19-demo-scenarios.md) | F12, F15 |
 | [x] | F20 | [Safe Intercept Constraint](F20-safe-intercept-constraint.md) | F10 |
-| [ ] | F21 | [Fallout Area Visualization](F21-fallout-area-visualization.md) | F15, F20 |
+| [x] | F21 | [Fallout Area Visualization](F21-fallout-area-visualization.md) | F15, F20 |
 
 ## 1.2 — Environmental and Engagement Refinement
 

@@ -3,6 +3,7 @@ from __future__ import annotations
 import math
 
 import numpy as np
+from shapely.geometry import MultiPoint
 
 from droneimpact.coords import enu_to_wgs84
 from droneimpact.scoring.types import ImpactEllipse
@@ -63,3 +64,66 @@ def compute_impact_ellipse(
         semi_minor_m=semi_minor,
         orientation_deg=orientation_deg,
     )
+
+
+def ellipse_boundary_points(
+    ellipse: ImpactEllipse,
+    n_points: int = 72,
+) -> list[tuple[float, float]]:
+    """Sample points on the boundary of a 90% confidence ellipse.
+
+    Returns a list of (lon, lat) tuples suitable for GeoJSON coordinates.
+    The ellipse orientation is measured clockwise from north.
+    """
+    if ellipse.semi_major_m <= 0 or ellipse.semi_minor_m <= 0:
+        return [(ellipse.centre_lon, ellipse.centre_lat)] * n_points
+
+    lat_per_m = 1.0 / 111_320.0
+    lon_per_m = 1.0 / (111_320.0 * math.cos(math.radians(ellipse.centre_lat)))
+
+    orient_rad = math.radians(ellipse.orientation_deg)
+
+    points: list[tuple[float, float]] = []
+    for i in range(n_points):
+        angle = 2.0 * math.pi * i / n_points
+        # Parametric ellipse in local ENU frame (east, north)
+        e = ellipse.semi_major_m * math.cos(angle)
+        n = ellipse.semi_minor_m * math.sin(angle)
+        # Rotate by orientation (clockwise from north -> standard math rotation)
+        # orientation_deg is angle of major axis from north, clockwise
+        # Major axis direction in ENU: east = sin(orient), north = cos(orient)
+        re = e * math.sin(orient_rad) + n * math.cos(orient_rad)
+        rn = e * math.cos(orient_rad) - n * math.sin(orient_rad)
+        lat = ellipse.centre_lat + rn * lat_per_m
+        lon = ellipse.centre_lon + re * lon_per_m
+        points.append((lon, lat))
+
+    return points
+
+
+def compute_combined_danger_zone(ellipses: list[ImpactEllipse]) -> dict:
+    """Compute GeoJSON polygon from convex hull of all ellipse boundaries.
+
+    Samples 72 points on each ellipse boundary, computes the convex hull
+    using shapely, and returns a GeoJSON Polygon dict.
+    """
+    all_points: list[tuple[float, float]] = []
+    for ell in ellipses:
+        all_points.extend(ellipse_boundary_points(ell, n_points=72))
+
+    if len(all_points) < 3:
+        return {"type": "Polygon", "coordinates": []}
+
+    mp = MultiPoint(all_points)
+    hull = mp.convex_hull
+
+    if hull.geom_type == "Point":
+        coord = list(hull.coords[0])
+        return {"type": "Polygon", "coordinates": [[coord, coord, coord, coord]]}
+    elif hull.geom_type == "LineString":
+        coords = [list(c) for c in hull.coords]
+        coords.append(coords[0])
+        return {"type": "Polygon", "coordinates": [coords]}
+
+    coords = [list(c) for c in hull.exterior.coords]
+    return {"type": "Polygon", "coordinates": [coords]}

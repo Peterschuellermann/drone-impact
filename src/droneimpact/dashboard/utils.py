@@ -29,6 +29,18 @@ def call_api(drone_state: dict) -> dict:
     return response.json()
 
 
+def call_point_impact_api(point_state: dict) -> dict:
+    """Call the point-impact endpoint for a single trajectory point."""
+    endpoint = get_api_endpoint()
+    response = httpx.post(
+        f"{endpoint}/analyze/point-impact",
+        json=point_state,
+        timeout=30.0,
+    )
+    response.raise_for_status()
+    return response.json()
+
+
 SYNC_THRESHOLD = 5
 
 

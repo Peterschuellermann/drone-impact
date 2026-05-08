@@ -440,3 +440,162 @@ def make_coloured_trajectory(result: dict) -> folium.Map:
     ])
 
     return m
+
+
+def add_fallout_overlay(
+    map_obj: folium.Map,
+    impact_response: dict,
+    mode_colors: dict | None = None,
+) -> folium.Map:
+    """Draw impact ellipses and combined danger zone on a Folium map.
+
+    Each mode ellipse is rendered as a semi-transparent polygon.
+    The combined danger zone is drawn as a dashed black outline.
+    """
+    if mode_colors is None:
+        mode_colors = {
+            "propulsion_loss": "#3b82f6",
+            "loss_of_control": "#f59e0b",
+            "break_apart": "#ef4444",
+        }
+
+    fallout_group = folium.FeatureGroup(name="Fallout Area", show=True)
+
+    modes = impact_response.get("modes", {})
+    for mode_name, mode_data in modes.items():
+        ellipse = mode_data.get("impact_ellipse", {})
+        colour = mode_colors.get(mode_name, "#888888")
+        label = MODE_LABELS.get(mode_name, mode_name)
+        casualties = mode_data.get("expected_casualties", 0.0)
+
+        centre_lat = ellipse.get("centre_lat", 0)
+        centre_lon = ellipse.get("centre_lon", 0)
+        semi_major = ellipse.get("semi_major_m", 0)
+        semi_minor = ellipse.get("semi_minor_m", 0)
+        orient_deg = ellipse.get("orientation_deg", 0)
+
+        if semi_major <= 0 or semi_minor <= 0:
+            continue
+
+        lat_per_m = 1.0 / 111_320.0
+        lon_per_m = 1.0 / (111_320.0 * math.cos(math.radians(centre_lat)))
+        orient_rad = math.radians(orient_deg)
+
+        boundary = []
+        for i in range(72):
+            angle = 2.0 * math.pi * i / 72
+            e = semi_major * math.cos(angle)
+            n = semi_minor * math.sin(angle)
+            re = e * math.sin(orient_rad) + n * math.cos(orient_rad)
+            rn = e * math.cos(orient_rad) - n * math.sin(orient_rad)
+            lat = centre_lat + rn * lat_per_m
+            lon = centre_lon + re * lon_per_m
+            boundary.append([lat, lon])
+
+        folium.Polygon(
+            locations=boundary,
+            color=colour,
+            weight=2,
+            fill=True,
+            fill_color=colour,
+            fill_opacity=0.2,
+            tooltip=f"{label}: {casualties:.4f} expected casualties",
+        ).add_to(fallout_group)
+
+    combined = impact_response.get("combined_danger_zone", {})
+    coords = combined.get("coordinates", [])
+    if coords and len(coords) > 0 and len(coords[0]) >= 3:
+        # GeoJSON coordinates are [lon, lat], Folium needs [lat, lon]
+        hull_points = [[c[1], c[0]] for c in coords[0]]
+        folium.Polygon(
+            locations=hull_points,
+            color="#000000",
+            weight=2,
+            dash_array="10 5",
+            fill=False,
+            tooltip="Combined danger zone",
+        ).add_to(fallout_group)
+
+    fallout_group.add_to(map_obj)
+    return map_obj
+
+
+def add_risk_zone_overlay(
+    map_obj: folium.Map,
+    trajectory_scores: list[dict],
+    risk_zones: list[dict],
+) -> folium.Map:
+    """Highlight high-risk trajectory segments with thick red polyline."""
+    if not risk_zones:
+        return map_obj
+
+    risk_group = folium.FeatureGroup(name="Risk Zones", show=True)
+
+    score_by_index = {pt["point_index"]: pt for pt in trajectory_scores}
+
+    for rz in risk_zones:
+        start_idx = rz["start_index"]
+        end_idx = rz["end_index"]
+        peak = rz.get("peak_expected_casualties", 0)
+
+        segment_coords = []
+        for idx in range(start_idx, end_idx + 1):
+            pt = score_by_index.get(idx)
+            if pt:
+                segment_coords.append([pt["lat"], pt["lon"]])
+
+        if len(segment_coords) >= 2:
+            folium.PolyLine(
+                segment_coords,
+                color="#dc2626",
+                weight=8,
+                opacity=0.6,
+                tooltip=f"Risk zone: peak casualties {peak:.4f}",
+            ).add_to(risk_group)
+
+    risk_group.add_to(map_obj)
+    return map_obj
+
+
+def make_point_detail_panel(point_data: dict, impact_response: dict) -> str:
+    """Generate markdown summary for a selected evaluation point."""
+    dist_km = point_data.get("distance_from_current_m", 0) / 1000
+    idx = point_data.get("point_index", 0)
+    high_risk = point_data.get("high_risk", False)
+
+    lines = [
+        f"### Selected Point: #{idx} ({dist_km:.1f} km from drone)",
+        "",
+        "| Metric | Value |",
+        "|---|---|",
+        f"| Position | {point_data.get('lat', 0):.5f}, {point_data.get('lon', 0):.5f} |",
+        f"| Altitude | {point_data.get('altitude_m', 0):.0f} m |",
+        f"| Expected Casualties | {point_data.get('expected_casualties', 0):.4f} |",
+        f"| High Risk | {'Yes' if high_risk else 'No'} |",
+    ]
+
+    modes = impact_response.get("modes", {})
+    if modes:
+        lines.extend([
+            "",
+            "### Mode Breakdown",
+            "",
+            "| Mode | Weight | Expected Casualties | CEP (m) |",
+            "|---|---|---|---|",
+        ])
+        for mode_key, mode_data in modes.items():
+            label = MODE_LABELS.get(mode_key, mode_key)
+            weight = mode_data.get("weight", 0)
+            cas = mode_data.get("expected_casualties", 0)
+            cep = mode_data.get("cep_m", 0)
+            lines.append(f"| {label} | {weight:.0%} | {cas:.4f} | {cep:.0f} |")
+
+    meta = impact_response.get("metadata", {})
+    sim_time = meta.get("simulation_time_ms", 0)
+    if sim_time:
+        lines.extend([
+            "",
+            f"*Point impact computed in {sim_time:.0f} ms*",
+        ])
+
+    return "\n".join(lines)

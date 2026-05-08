@@ -108,3 +108,27 @@ class SingleDroneResponse(BaseModel):
     engagement_zones: list[EngagementZoneSchema] | None = None
     risk_zones: list[RiskZoneSchema] = []
     unconstrained_optimum: RecommendedEngagementSchema | None = None
+
+
+# --- Point impact endpoint schemas ---
+
+
+class PointImpactRequest(BaseModel):
+    lat: float = Field(ge=-90, le=90)
+    lon: float = Field(ge=-180, le=180)
+    altitude_m: float = Field(gt=0, le=10_000)
+    heading_deg: float = Field(ge=0, lt=360)
+    speed_m_s: float = Field(ge=20, le=300)
+
+
+class PointImpactModeResult(BaseModel):
+    weight: float
+    expected_casualties: float
+    cep_m: float
+    impact_ellipse: ImpactEllipseSchema
+
+
+class PointImpactResponse(BaseModel):
+    modes: dict[str, PointImpactModeResult]
+    combined_danger_zone: dict
+    metadata: dict

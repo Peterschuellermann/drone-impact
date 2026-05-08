@@ -5,6 +5,8 @@ from datetime import datetime, timezone
 
 from fastapi import APIRouter, HTTPException, Request
 
+import numpy as np
+
 from droneimpact.api import get_app_state
 from droneimpact.api.schemas import (
     EngagementZoneSchema,
@@ -12,6 +14,9 @@ from droneimpact.api.schemas import (
     ImpactEllipseSchema,
     MetadataSchema,
     ModeBreakdown,
+    PointImpactModeResult,
+    PointImpactRequest,
+    PointImpactResponse,
     RecommendedEngagementSchema,
     RiskZoneSchema,
     SingleDroneRequest,
@@ -20,7 +25,8 @@ from droneimpact.api.schemas import (
 )
 from droneimpact.casualty.engine import CasualtyEngine
 from droneimpact.physics.trajectory import discretise_trajectory
-from droneimpact.physics.types import StateVector
+from droneimpact.physics.types import StateVector, TrajectoryPoint
+from droneimpact.scoring.ellipse import compute_combined_danger_zone
 from droneimpact.scoring.engine import ScoringEngine
 from droneimpact.scoring.types import TrajectoryResult
 
@@ -65,6 +71,75 @@ def analyze_single(body: SingleDroneRequest, request: Request) -> SingleDroneRes
     elapsed_ms = (time.perf_counter() - t_start) * 1000
 
     return _build_response(body, result, elapsed_ms, state)
+
+
+@router.post("/point-impact", response_model=PointImpactResponse)
+def analyze_point_impact(body: PointImpactRequest, request: Request) -> PointImpactResponse:
+    """Compute impact distribution for a single trajectory point."""
+    state = get_app_state(request)
+    if not state.data_loaded:
+        raise HTTPException(status_code=503, detail="Data not loaded. Check /health.")
+
+    t_start = time.perf_counter()
+
+    pt = TrajectoryPoint(
+        index=0,
+        lat=body.lat,
+        lon=body.lon,
+        altitude_m=body.altitude_m,
+        distance_from_start_m=0.0,
+        heading_deg=body.heading_deg,
+        speed_m_s=body.speed_m_s,
+    )
+
+    agl = state.dem.msl_to_agl(pt.lat, pt.lon, pt.altitude_m)
+
+    casualty_engine = CasualtyEngine(
+        population=state.population,
+        infrastructure=state.infrastructure,
+        config=state.config.casualty,
+    )
+    scoring_engine = ScoringEngine(config=state.config)
+    n_samples = state.config.physics.n_monte_carlo_samples
+    rng = np.random.default_rng()
+
+    ps, dists = scoring_engine._score_point(
+        pt, agl, n_samples, casualty_engine,
+        miss_casualties=0.0,
+        rng=rng,
+        compute_ellipses=True,
+    )
+
+    modes: dict[str, PointImpactModeResult] = {}
+    ellipses = []
+    for d in dists:
+        ellipses.append(d.impact_ellipse)
+        mode_score = ps.breakdown.get(d.mode)
+        modes[d.mode] = PointImpactModeResult(
+            weight=mode_score.weight if mode_score else 0.0,
+            expected_casualties=mode_score.expected_casualties if mode_score else 0.0,
+            cep_m=mode_score.cep_m if mode_score else 0.0,
+            impact_ellipse=ImpactEllipseSchema(
+                centre_lat=d.impact_ellipse.centre_lat,
+                centre_lon=d.impact_ellipse.centre_lon,
+                semi_major_m=d.impact_ellipse.semi_major_m,
+                semi_minor_m=d.impact_ellipse.semi_minor_m,
+                orientation_deg=d.impact_ellipse.orientation_deg,
+            ),
+        )
+
+    combined = compute_combined_danger_zone(ellipses)
+
+    elapsed_ms = (time.perf_counter() - t_start) * 1000
+
+    return PointImpactResponse(
+        modes=modes,
+        combined_danger_zone=combined,
+        metadata={
+            "n_monte_carlo_samples": n_samples,
+            "simulation_time_ms": elapsed_ms,
+        },
+    )
 
 
 def _build_response(

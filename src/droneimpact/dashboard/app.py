@@ -6,16 +6,25 @@ from streamlit_folium import st_folium
 
 from droneimpact.dashboard.batch_input import render_batch_input
 from droneimpact.dashboard.components import (
+    add_fallout_overlay,
+    add_risk_zone_overlay,
     make_batch_map,
     make_coloured_trajectory,
     make_impact_scatter,
+    make_point_detail_panel,
     make_priority_table,
     make_risk_profile,
     make_stats_panel,
     make_trajectory_map,
     prepare_animation_frames,
 )
-from droneimpact.dashboard.utils import call_api, call_batch_api, export_geojson, load_scenarios
+from droneimpact.dashboard.utils import (
+    call_api,
+    call_batch_api,
+    call_point_impact_api,
+    export_geojson,
+    load_scenarios,
+)
 
 st.set_page_config(page_title="DroneImpact", layout="wide")
 
@@ -102,7 +111,65 @@ def _render_single_drone():
         ])
 
         with tab_map:
-            st_folium(make_trajectory_map(result), use_container_width=True, height=600)
+            traj_map = make_trajectory_map(result)
+            add_risk_zone_overlay(
+                traj_map,
+                result["trajectory_scores"],
+                result.get("risk_zones", []),
+            )
+            st_folium(traj_map, use_container_width=True, height=600)
+
+            # --- Interactive point inspection ---
+            scores = result["trajectory_scores"]
+            rec_idx = result["recommended_engagement"]["point_index"]
+
+            point_options = []
+            default_select = 0
+            for i, pt in enumerate(scores):
+                dist_km = pt["distance_from_current_m"] / 1000
+                label = f"Point #{pt['point_index']} -- {dist_km:.1f} km"
+                if pt["point_index"] == rec_idx:
+                    label += " (recommended)"
+                    default_select = i
+                point_options.append(label)
+
+            if point_options:
+                selected_pt_idx = st.selectbox(
+                    "Inspect evaluation point",
+                    range(len(point_options)),
+                    index=default_select,
+                    format_func=lambda i: point_options[i],
+                    key="inspect_point",
+                )
+
+                selected_pt = scores[selected_pt_idx]
+                try:
+                    impact_data = call_point_impact_api({
+                        "lat": selected_pt["lat"],
+                        "lon": selected_pt["lon"],
+                        "altitude_m": selected_pt["altitude_m"],
+                        "heading_deg": heading_deg,
+                        "speed_m_s": speed_m_s,
+                    })
+
+                    fallout_map = make_coloured_trajectory(result)
+                    add_risk_zone_overlay(
+                        fallout_map,
+                        result["trajectory_scores"],
+                        result.get("risk_zones", []),
+                    )
+                    folium.CircleMarker(
+                        [selected_pt["lat"], selected_pt["lon"]],
+                        radius=10, color="#8b5cf6", fill=True,
+                        fill_opacity=1.0, weight=3,
+                        tooltip="Selected point",
+                    ).add_to(fallout_map)
+                    add_fallout_overlay(fallout_map, impact_data)
+                    st_folium(fallout_map, use_container_width=True, height=450)
+
+                    st.markdown(make_point_detail_panel(selected_pt, impact_data))
+                except Exception as e:
+                    st.warning(f"Could not load point impact data: {e}")
 
         with tab_impact:
             st.plotly_chart(make_impact_scatter(result), use_container_width=True)
