@@ -43,7 +43,7 @@ Implementation agent: pick the first `[ ]` plan whose dependencies are all `[x]`
 | [x] | F15 | [Data Visualization Dashboard](F15-data-visualization-dashboard.md) | F12 |
 | [x] | F16 | [Batch Visualization](F16-batch-visualization.md) | F15, F13 |
 | [x] | F17 | [Trajectory Animation](F17-trajectory-animation.md) | F15 |
-| [ ] | F18 | [Docker Compose Deployment](F18-docker-compose.md) | F15 |
+| [x] | F18 | [Docker Compose Deployment](F18-docker-compose.md) | F15 |
 
 ## 1.2 — Environmental and Engagement Refinement
 
