@@ -2,7 +2,7 @@
 
 Implementation agent: pick the first `[ ]` plan whose dependencies are all `[x]`, create a branch, and implement it. Mark `[~]` when started, `[x]` when merged.
 
-## Version 1 — Physics Baseline
+## 1.0 — Physics Baseline
 
 | Status | ID | Plan | Dependencies |
 |---|---|---|---|
@@ -21,22 +21,22 @@ Implementation agent: pick the first `[ ]` plan whose dependencies are all `[x]`
 | [x] | F13 | [Batch REST API + Async Job Management](F13-api-batch.md) | F12 |
 | [x] | F14 | [Performance Benchmarks](F14-performance-benchmarks.md) | F12, F13 |
 
-## Version 2 — Dashboard & Operational Hardening
+## 1.1 — Dashboard & Operational Hardening
 
 | Status | ID | Plan | Dependencies |
 |---|---|---|---|
 | [ ] | F15 | [Data Visualization Dashboard](F15-data-visualization-dashboard.md) | F12 |
 
-Additional v2 features (batch visualization, trajectory animation, country selector, API auth, request logging, Docker Compose) need plans. See `/spec/roadmap.md`.
+Additional 1.1 features (batch visualization, trajectory animation, country selector, API auth, request logging, Docker Compose) need plans. See `/spec/roadmap.md`.
 
-## Version 3 — Environmental and Engagement Refinement
+## 1.2 — Environmental and Engagement Refinement
 
-Planned after v2 is complete. Includes dashboard updates for new physics features. See `/spec/roadmap.md`.
+Planned after 1.1 is complete. Includes dashboard updates for new physics features. See `/spec/roadmap.md`.
 
-## Version 4 — Manoeuvre Prediction and Data-Driven Model
+## 1.3 — Manoeuvre Prediction and Data-Driven Model
 
-Planned after v3 is complete. Includes historical data dashboard and defence planning. See `/spec/roadmap.md`.
+Planned after 1.2 is complete. Includes historical data dashboard and defence planning. See `/spec/roadmap.md`.
 
-## Version 5 — Real-Time Operations
+## 1.4 — Real-Time Operations
 
-Planned after v4 is complete. Real-time WebSocket integration and multi-drone coordination. See `/spec/roadmap.md`.
+Planned after 1.3 is complete. Real-time WebSocket integration and multi-drone coordination. See `/spec/roadmap.md`.

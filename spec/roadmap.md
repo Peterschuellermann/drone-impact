@@ -1,6 +1,6 @@
 # Roadmap
 
-## Version 1 — Physics Baseline (Current Spec)
+## 1.0 — Physics Baseline (Current Spec)
 
 **Goal:** Working physics-based engagement advisor for straight-line Shahed trajectories.
 
@@ -18,7 +18,7 @@
 - Single drone + batch API (up to 50 drones)
 - Country-agnostic data layer (Ukraine pre-loaded)
 - No wind/weather
-- No UI / dashboard (v2)
+- No UI / dashboard (1.1)
 - No historical data DB
 
 ### Performance targets
@@ -29,7 +29,7 @@
 
 ---
 
-## Version 2 — Dashboard & Operational Hardening
+## 1.1 — Dashboard & Operational Hardening
 
 **Goal:** Interactive dashboard for analysts; batch visualization; operational readiness (auth, logging, deployment).
 
@@ -59,7 +59,7 @@
 
 **Country/region selector**
 - Dashboard sidebar dropdown to switch between loaded datasets (Kontur, DEM, OSM)
-- Demonstrates the country-agnostic data layer built in v1
+- Demonstrates the country-agnostic data layer built in 1.0
 - Available regions detected from files present in `data/`
 
 **API key authentication**
@@ -83,7 +83,7 @@
 
 ---
 
-## Version 3 — Environmental and Engagement Refinement
+## 1.2 — Environmental and Engagement Refinement
 
 **Goal:** Improve physical accuracy and operational realism; update dashboard to expose new parameters.
 
@@ -93,7 +93,7 @@
 - Add wind vector (u, v components at altitude) as optional input
 - Wind affects all three terminal trajectory modes (glide path, erratic drift, fragment range)
 - Data source: ECMWF ERA5 reanalysis (historical) + NWP forecast feed (operational)
-- v1 simulations are run without wind and the result is deterministic → stochastic; wind adds a systematic offset to impact distributions
+- 1.0 simulations are run without wind and the result is deterministic → stochastic; wind adds a systematic offset to impact distributions
 
 **Warhead detonation probability**
 - Add `p_detonate` parameter (default 0.85 — estimate based on intercept reports)
@@ -130,7 +130,7 @@
 
 ---
 
-## Version 4 — Manoeuvre Prediction and Data-Driven Model
+## 1.3 — Manoeuvre Prediction and Data-Driven Model
 
 **Goal:** Remove the straight-line trajectory assumption; predict likely flight paths from historical data; add historical analysis and defence planning to the dashboard.
 
@@ -142,9 +142,9 @@
 - Schema supports: partial trajectories, confidence levels, source citations
 
 **Trajectory reconstruction pipeline**
-- Backward simulation from known impact points using v1 physics (reverse Monte Carlo)
+- Backward simulation from known impact points using 1.0 physics (reverse Monte Carlo)
 - Yields plausible launch vectors and in-flight positions for events without tracked trajectories
-- Validates v1 physics model against known outcomes
+- Validates 1.0 physics model against known outcomes
 
 **Data-driven waypoint prediction**
 - Learn typical Shahed approach corridors from historical data
@@ -153,7 +153,7 @@
 
 **Manoeuvre-aware scoring**
 - Instead of a single trajectory vector, accept a probability distribution over future paths
-- For each candidate path, run the v1 physics simulation
+- For each candidate path, run the 1.0 physics simulation
 - Weight path scores by path probability
 - Output: uncertainty band on the engagement score reflecting trajectory uncertainty
 
@@ -166,7 +166,7 @@
 - Add launcher position (lat/lon) and missile system type as optional inputs to the analyze endpoints
 - Filter out trajectory evaluation points that are outside the system's max slant range
 - Per-system engagement envelopes defined in config (range, altitude floor/ceiling)
-- Requires the per-system P_kill and mode weight tables that v3 introduces; the envelope check is only meaningful once the system type is known
+- Requires the per-system P_kill and mode weight tables that 1.2 introduces; the envelope check is only meaningful once the system type is known
 
 **DEM-aware terrain shadowing**
 - Check line-of-sight from launcher position to drone at each evaluation point
@@ -187,7 +187,7 @@
 
 ---
 
-## Version 5 — Real-Time Operations
+## 1.4 — Real-Time Operations
 
 **Goal:** Live engagement support — stream drone tracks in real time, coordinate multiple interceptors across simultaneous threats.
 
@@ -217,10 +217,10 @@ These require investigation before they can be specced into a version:
 | Question | Priority | Notes |
 |---|---|---|
 | What is the actual Shahed glide ratio? | High | Critical for M1 footprint accuracy. Needs aerodynamics data or physical test |
-| What fraction of intercepted Shaheds detonate on impact? | High | Affects v3 p_detonate parameter. Source: UA Air Force / OSINT |
+| What fraction of intercepted Shaheds detonate on impact? | High | Affects 1.2 p_detonate parameter. Source: UA Air Force / OSINT |
 | What are the conditional mode probabilities (p_M1, p_M2, p_M3 given hit)? | High | Currently estimated. Needs intercept video analysis or partner data |
-| Can trajectory data be obtained from UA defence partners? | High | Blocks v4 data-driven model |
-| Does Shahed use terrain-following? | Medium | If yes, altitude is not constant — changes v1 trajectory model |
+| Can trajectory data be obtained from UA defence partners? | High | Blocks 1.3 data-driven model |
+| Does Shahed use terrain-following? | Medium | If yes, altitude is not constant — changes 1.0 trajectory model |
 | What is the Shahed-136 warhead fragmentation pattern? | Medium | Currently using generic estimates; unit-specific data would improve accuracy |
 | How much has wartime displacement shifted Ukrainian population? | Medium | Affects casualty model accuracy; Kontur partially accounts for it |
 | Are there other loitering munition types in the theatre? | Low | Scope expansion beyond Shahed-136 |
