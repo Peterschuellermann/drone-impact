@@ -85,25 +85,37 @@ class ScoringEngine:
     ) -> tuple[PointScore, list[ImpactDistribution]]:
         phys = self._config.physics
         eng = self._config.engagement
-
-        enu_m1 = simulate_m1(agl, pt.heading_deg, n_samples, phys, rng=rng)
-        enu_m2 = simulate_m2(agl, pt.heading_deg, pt.speed_m_s, n_samples, phys, rng=rng)
-        enu_m3 = simulate_m3(agl, pt.heading_deg, pt.speed_m_s, n_samples, phys, rng=rng)
-
-        wgs_m1 = _enu_to_wgs84_fast(enu_m1, pt.lat, pt.lon)
-        wgs_m2 = _enu_to_wgs84_fast(enu_m2, pt.lat, pt.lon)
-        wgs_m3 = _enu_to_wgs84_fast(enu_m3, pt.lat, pt.lon)
-
-        cas_m1 = casualty_engine.compute(wgs_m1)
-        cas_m2 = casualty_engine.compute(wgs_m2)
-        cas_m3 = casualty_engine.compute(wgs_m3)
-
+        enable = eng.mode_enable
         w = eng.mode_weights
-        hit_casualties = (
-            w.propulsion_loss * cas_m1
-            + w.loss_of_control * cas_m2
-            + w.break_apart * cas_m3
-        )
+
+        modes: list[tuple[str, float, callable, tuple]] = []
+        if enable.propulsion_loss:
+            modes.append(("propulsion_loss", w.propulsion_loss,
+                          simulate_m1, (agl, pt.heading_deg, n_samples, phys)))
+        if enable.loss_of_control:
+            modes.append(("loss_of_control", w.loss_of_control,
+                          simulate_m2, (agl, pt.heading_deg, pt.speed_m_s, n_samples, phys)))
+        if enable.break_apart:
+            modes.append(("break_apart", w.break_apart,
+                          simulate_m3, (agl, pt.heading_deg, pt.speed_m_s, n_samples, phys)))
+
+        total_weight = sum(mw for _, mw, _, _ in modes)
+
+        breakdown: dict[str, ModeScore] = {}
+        dists: list[ImpactDistribution] = []
+        hit_casualties = 0.0
+
+        for mode_name, raw_weight, sim_fn, sim_args in modes:
+            enu = sim_fn(*sim_args, rng=rng)
+            wgs = _enu_to_wgs84_fast(enu, pt.lat, pt.lon)
+            cas = casualty_engine.compute(wgs)
+            eff_weight = raw_weight / total_weight if total_weight > 0 else 0.0
+            hit_casualties += eff_weight * cas
+            breakdown[mode_name] = ModeScore(eff_weight, cas, compute_cep(enu))
+            if compute_ellipses:
+                ellipse = compute_impact_ellipse(enu, pt.lat, pt.lon)
+                dists.append(ImpactDistribution(pt.index, mode_name, ellipse))
+
         score = eng.p_kill * hit_casualties + (1.0 - eng.p_kill) * miss_casualties
 
         ps = PointScore(
@@ -114,24 +126,10 @@ class ScoringEngine:
             distance_from_start_m=pt.distance_from_start_m,
             expected_casualties=score,
             engagement_score=score,
-            breakdown={
-                "propulsion_loss": ModeScore(w.propulsion_loss, cas_m1, compute_cep(enu_m1)),
-                "loss_of_control": ModeScore(w.loss_of_control, cas_m2, compute_cep(enu_m2)),
-                "break_apart": ModeScore(w.break_apart, cas_m3, compute_cep(enu_m3)),
-            },
+            breakdown=breakdown,
             miss_branch_expected_casualties=miss_casualties,
             hit_branch_expected_casualties=hit_casualties,
         )
-
-        dists: list[ImpactDistribution] = []
-        if compute_ellipses:
-            for mode_name, enu_pts in [
-                ("propulsion_loss", enu_m1),
-                ("loss_of_control", enu_m2),
-                ("break_apart", enu_m3),
-            ]:
-                ellipse = compute_impact_ellipse(enu_pts, pt.lat, pt.lon)
-                dists.append(ImpactDistribution(pt.index, mode_name, ellipse))
 
         return ps, dists
 

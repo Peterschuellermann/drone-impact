@@ -241,3 +241,58 @@ def test_interpolation_output_length():
         point_scores = _make_full_point_scores(traj, scored)
         result = ScoringEngine._interpolate_gaps(traj, point_scores, scored)
         assert len(result) == n
+
+
+# --- Mode enable tests ---
+
+
+def test_disabled_mode_excluded_from_breakdown(config, short_trajectory, flat_dem, casualty_engine):
+    disabled_cfg = config.model_copy(update={
+        "engagement": config.engagement.model_copy(update={
+            "mode_enable": config.engagement.mode_enable.model_copy(
+                update={"break_apart": False}
+            ),
+        }),
+    })
+    scoring = ScoringEngine(disabled_cfg)
+    result = scoring.score_trajectory(
+        short_trajectory, flat_dem, casualty_engine, (48.1, 31.0),
+        rng=np.random.default_rng(0),
+    )
+    for ps in result.trajectory_scores:
+        assert "break_apart" not in ps.breakdown
+        assert set(ps.breakdown.keys()) == {"propulsion_loss", "loss_of_control"}
+
+
+def test_disabled_mode_renormalizes_weights(config, short_trajectory, flat_dem, casualty_engine):
+    disabled_cfg = config.model_copy(update={
+        "engagement": config.engagement.model_copy(update={
+            "mode_enable": config.engagement.mode_enable.model_copy(
+                update={"break_apart": False}
+            ),
+        }),
+    })
+    scoring = ScoringEngine(disabled_cfg)
+    result = scoring.score_trajectory(
+        short_trajectory, flat_dem, casualty_engine, (48.1, 31.0),
+        rng=np.random.default_rng(0),
+    )
+    ps = result.trajectory_scores[0]
+    total = sum(v.weight for v in ps.breakdown.values())
+    assert total == pytest.approx(1.0, abs=1e-6)
+
+
+def test_disabled_mode_fewer_impact_distributions(config, short_trajectory, flat_dem, casualty_engine):
+    disabled_cfg = config.model_copy(update={
+        "engagement": config.engagement.model_copy(update={
+            "mode_enable": config.engagement.mode_enable.model_copy(
+                update={"break_apart": False}
+            ),
+        }),
+    })
+    scoring = ScoringEngine(disabled_cfg)
+    result = scoring.score_trajectory(
+        short_trajectory, flat_dem, casualty_engine, (48.1, 31.0),
+        rng=np.random.default_rng(0),
+    )
+    assert len(result.impact_distributions) == len(short_trajectory) * 2

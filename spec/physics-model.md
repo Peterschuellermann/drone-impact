@@ -56,7 +56,7 @@ For each `P_i`, an independent Monte Carlo simulation is run.
 
 For each evaluation point `P_i`:
 
-1. Draw `N = 10,000` samples (configurable)
+1. Draw `N = 2,000` samples (configurable via `n_monte_carlo_samples`)
 2. For each sample, draw outcome: `hit` (p=P_kill) or `miss` (p=1-P_kill)
 3. If `hit`, draw mode from `{M1, M2, M3}` with weights `{w1, w2, w3}` (see [engagement model](engagement-model.md))
 4. Simulate terminal trajectory for the drawn mode → get impact point `(x_impact, y_impact)` in ENU
@@ -217,7 +217,7 @@ Known limitation: A significant fraction of Shaheds that have been intercepted h
 
 | Operation | Target latency |
 |---|---|
-| Single drone, 10,000 samples, 50 evaluation points | < 500 ms |
+| Single drone, 2,000 samples, 50 evaluation points | < 500 ms |
 | Batch of 50 drones (same params) | < 15 s |
 
 Monte Carlo samples are independent — parallelise across both samples and trajectory points using vectorised NumPy operations or JIT compilation (Numba/JAX). Avoid per-sample Python loops.

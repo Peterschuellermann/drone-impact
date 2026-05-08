@@ -59,10 +59,11 @@ class CasualtyEngine:
             {b.radius_m for b in blast_bands} | {b.radius_m for b in frag_bands}
         )
 
-        # Query cumulative population at each radius
+        cells = self._pop.latlng_to_cells(lats, lons)
+
         pop_within: dict[float, np.ndarray] = {}
         for r in all_radii:
-            pop_within[r] = self._pop.query_batch(lats, lons, r)
+            pop_within[r] = self._pop.query_batch_cells(cells, r)
 
         # Accumulate casualties per annular ring
         n = len(lats)
@@ -103,11 +104,11 @@ class CasualtyEngine:
         blast = self._config.blast
         frag = self._config.fragmentation
 
-        # Population in concentric rings (blast radii nest inside frag radii)
-        pop_0_blast_lethal = self._pop.query_batch(lats, lons, blast.lethal_radius_m)
-        pop_0_blast_injury = self._pop.query_batch(lats, lons, blast.injury_radius_m)
-        pop_0_frag_lethal = self._pop.query_batch(lats, lons, frag.lethal_radius_m)
-        pop_0_frag_danger = self._pop.query_batch(lats, lons, frag.danger_radius_m)
+        cells = self._pop.latlng_to_cells(lats, lons)
+        pop_0_blast_lethal = self._pop.query_batch_cells(cells, blast.lethal_radius_m)
+        pop_0_blast_injury = self._pop.query_batch_cells(cells, blast.injury_radius_m)
+        pop_0_frag_lethal = self._pop.query_batch_cells(cells, frag.lethal_radius_m)
+        pop_0_frag_danger = self._pop.query_batch_cells(cells, frag.danger_radius_m)
 
         ring_blast_lethal = pop_0_blast_lethal
         ring_blast_injury = np.maximum(pop_0_blast_injury - pop_0_blast_lethal, 0.0)

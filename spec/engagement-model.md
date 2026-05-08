@@ -204,6 +204,7 @@ All of the following must be exposed as configurable constants in the implementa
 | `p_mode_propulsion_loss` | 0.40 | P(M1 \| hit) |
 | `p_mode_loss_of_control` | 0.35 | P(M2 \| hit) |
 | `p_mode_break_apart` | 0.25 | P(M3 \| hit) |
-| `n_monte_carlo_samples` | 10,000 | Samples per evaluation point per mode |
+| `n_monte_carlo_samples` | 2,000 | Samples per evaluation point per mode |
 | `evaluation_spacing_m` | 500 | Distance between evaluation points |
 | `high_risk_threshold` | 0.50 | Hit-branch expected casualties above which a point is high-risk |
+| `mode_enable.*` | all `true` | Per-mode toggle; disabled modes are excluded and remaining weights renormalized |

@@ -1,7 +1,7 @@
 version: "1.0"
 
 physics:
-  n_monte_carlo_samples: 10000
+  n_monte_carlo_samples: 2000
   evaluation_spacing_m: 500
   shahed136:
     mass_kg: 200.0

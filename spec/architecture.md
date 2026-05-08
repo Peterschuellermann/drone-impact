@@ -218,7 +218,7 @@ All tunable parameters are loaded from a configuration file (YAML or TOML), not 
 
 ```yaml
 physics:
-  n_monte_carlo_samples: 10000
+  n_monte_carlo_samples: 2000
   evaluation_spacing_m: 500
   shahed136:
     mass_kg: 200
@@ -234,6 +234,10 @@ engagement:
     propulsion_loss: 0.40
     loss_of_control: 0.35
     break_apart: 0.25
+  mode_enable:
+    propulsion_loss: true
+    loss_of_control: true
+    break_apart: true
 
 casualty:
   blast:

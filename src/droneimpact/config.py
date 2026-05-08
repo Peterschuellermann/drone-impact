@@ -54,10 +54,17 @@ class ModeWeights(BaseModel):
         return self
 
 
+class ModeEnable(BaseModel):
+    propulsion_loss: bool = True
+    loss_of_control: bool = True
+    break_apart: bool = True
+
+
 class EngagementConfig(BaseModel):
     p_kill: float
     high_risk_threshold: float = 0.5
     mode_weights: ModeWeights
+    mode_enable: ModeEnable = ModeEnable()
 
 
 class BlastParams(BaseModel):

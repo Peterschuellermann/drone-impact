@@ -58,20 +58,28 @@ class PopulationIndex:
         k = self._k_for_radius(radius_m)
         return float(self._disk_population(centre, k))
 
+    def latlng_to_cells(
+        self, lats: np.ndarray, lons: np.ndarray,
+    ) -> list[str]:
+        return [
+            h3.latlng_to_cell(float(lats[i]), float(lons[i]), self._resolution)
+            for i in range(len(lats))
+        ]
+
     def query_batch(
         self, lats: np.ndarray, lons: np.ndarray, radius_m: float
     ) -> np.ndarray:
-        k = self._k_for_radius(radius_m)
-        n = len(lats)
-        cells = [
-            h3.latlng_to_cell(float(lats[i]), float(lons[i]), self._resolution)
-            for i in range(n)
-        ]
+        cells = self.latlng_to_cells(lats, lons)
+        return self.query_batch_cells(cells, radius_m)
 
+    def query_batch_cells(
+        self, cells: list[str], radius_m: float,
+    ) -> np.ndarray:
+        k = self._k_for_radius(radius_m)
         unique_cells = set(cells)
         cell_pop = {c: self._disk_population(c, k) for c in unique_cells}
 
-        result = np.empty(n, dtype=np.float32)
+        result = np.empty(len(cells), dtype=np.float32)
         for i, c in enumerate(cells):
             result[i] = cell_pop[c]
         return result
