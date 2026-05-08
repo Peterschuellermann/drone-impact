@@ -53,6 +53,14 @@ Implementation agent: pick the first `[ ]` plan whose dependencies are all `[x]`
 | [x] | F20 | [Safe Intercept Constraint](F20-safe-intercept-constraint.md) | F10 |
 | [x] | F21 | [Fallout Area Visualization](F21-fallout-area-visualization.md) | F15, F20 |
 
+## 1.1c — Dashboard UX & Performance
+
+| Status | ID | Plan | Dependencies |
+|---|---|---|---|
+| [ ] | F22 | [Click-to-Select Trajectory Point with Impact Zoom](F22-click-to-select-trajectory-point.md) | F21 |
+| [ ] | F23 | [Trajectory Direction Indicator](F23-trajectory-direction-indicator.md) | F15 |
+| [ ] | F24 | [Scenario Result Cache](F24-scenario-result-cache.md) | F19 |
+
 ## 1.2 — Environmental and Engagement Refinement
 
 Planned after 1.1 is complete. Includes dashboard updates for new physics features. See `/spec/roadmap.md`.
