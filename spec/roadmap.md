@@ -18,7 +18,7 @@
 - Single drone + batch API (up to 50 drones)
 - Country-agnostic data layer (Ukraine pre-loaded)
 - No wind/weather
-- No UI / dashboard
+- No UI / dashboard (v2)
 - No historical data DB
 
 ### Performance targets
@@ -29,9 +29,43 @@
 
 ---
 
-## Version 2 — Environmental and Engagement Refinement
+## Version 2 — Dashboard & Operational Interface
 
-**Goal:** Improve physical accuracy and operational realism.
+**Goal:** Interactive dashboard for analysts and operators; real-time operational capabilities for live engagements.
+
+### Planned features
+
+**Streamlit analysis dashboard (F15)**
+- Input form: drone state (lat/lon/altitude/heading/speed)
+- Calls `/analyze/single` and displays all results interactively
+- 2D map: trajectory line, evaluation point markers (sized by casualty risk), recommended engagement point, population density heatmap, optional infrastructure layer
+- Impact scatter plot: Monte Carlo impact points coloured by mode (M1/M2/M3), CEP confidence ellipses
+- Risk profile chart: expected casualties vs. distance along trajectory
+- Statistics panel: mode breakdown, casualty estimates, P_kill, engagement score
+- GeoJSON export of trajectory + impact points
+- 5-minute response cache to avoid duplicate API calls during exploration
+- Degrades gracefully if API is unreachable
+
+**Trajectory animation**
+- Replay simulated drone flights on map
+- Colour-code trajectory by engagement score at each point
+- Mark optimal engagement point with annotation
+
+**Real-time integration**
+- WebSocket endpoint for live drone track input
+- Stream of engagement score updates as new position fixes arrive
+- Alert when engagement score crosses threshold
+
+**Multi-drone coordination**
+- Handle swarm scenarios: multiple simultaneous drones
+- Allocate available interceptors to minimise total expected casualties
+- Assignment optimisation (linear assignment or greedy)
+
+---
+
+## Version 3 — Environmental and Engagement Refinement
+
+**Goal:** Improve physical accuracy and operational realism; update dashboard to expose new parameters.
 
 ### Planned features
 
@@ -68,11 +102,17 @@
 - Replace exponential approximation with ISA standard atmosphere table
 - Add temperature/pressure variation with altitude for accurate air density
 
+**Dashboard updates**
+- Wind vector overlay on map (arrows showing wind direction and speed at drone altitude)
+- Missile system selector in input form; display system-specific P_kill in statistics panel
+- Time-of-day slider with live population density update on map
+- Sheltering factor visualization: colour buildings by protection class on infrastructure layer
+
 ---
 
-## Version 3 — Manoeuvre Prediction and Data-Driven Model
+## Version 4 — Manoeuvre Prediction and Data-Driven Model
 
-**Goal:** Remove the straight-line trajectory assumption; predict likely flight paths from historical data.
+**Goal:** Remove the straight-line trajectory assumption; predict likely flight paths from historical data; add historical analysis and defence planning to the dashboard.
 
 ### Planned features
 
@@ -106,46 +146,24 @@
 - Add launcher position (lat/lon) and missile system type as optional inputs to the analyze endpoints
 - Filter out trajectory evaluation points that are outside the system's max slant range
 - Per-system engagement envelopes defined in config (range, altitude floor/ceiling)
-- Moved from v2: requires the per-system P_kill and mode weight tables that v2 introduces; the envelope check is only meaningful once the system type is known
+- Requires the per-system P_kill and mode weight tables that v3 introduces; the envelope check is only meaningful once the system type is known
 
 **DEM-aware terrain shadowing**
 - Check line-of-sight from launcher position to drone at each evaluation point
 - Points that are terrain-masked are flagged as unengageable and excluded from the recommendation
 - Depends on launcher position input (above)
 
----
-
-## Version 4 — Dashboard and Defence Planning
-
-**Goal:** Visual interface for operators and analysts; shift from single-drone advisory to systemic defence planning.
-
-### Planned features
-
-**Historical data dashboard**
+**Dashboard: historical data views**
 - Map view of all historical impact events
 - Filter by: date range, region, drone type, intercept status
 - Heatmap of impact density
 - Timeline of attack waves
+- Replay historical drone flights on map with engagement score colour-coding
 
-**Trajectory playback**
-- Replay historical or simulated drone flights on map
-- Colour-code trajectory by engagement score at each point
-- Mark optimal engagement point with annotation
-
-**Defence location planning module**
+**Dashboard: defence location planning**
 - Input: set of defended assets (locations + priorities)
 - Output: recommended placement for air defence systems to maximise coverage of high-risk corridors
 - Approach: coverage optimisation over historical trajectory distribution
-
-**Real-time integration**
-- WebSocket endpoint for live drone track input
-- Stream of engagement score updates as new position fixes arrive
-- Alert when engagement score crosses threshold
-
-**Multi-drone coordination**
-- Handle swarm scenarios: multiple simultaneous drones
-- Allocate available interceptors to minimise total expected casualties
-- Assignment optimisation (linear assignment or greedy)
 
 ---
 
@@ -156,9 +174,9 @@ These require investigation before they can be specced into a version:
 | Question | Priority | Notes |
 |---|---|---|
 | What is the actual Shahed glide ratio? | High | Critical for M1 footprint accuracy. Needs aerodynamics data or physical test |
-| What fraction of intercepted Shaheds detonate on impact? | High | Affects v2 p_detonate parameter. Source: UA Air Force / OSINT |
+| What fraction of intercepted Shaheds detonate on impact? | High | Affects v3 p_detonate parameter. Source: UA Air Force / OSINT |
 | What are the conditional mode probabilities (p_M1, p_M2, p_M3 given hit)? | High | Currently estimated. Needs intercept video analysis or partner data |
-| Can trajectory data be obtained from UA defence partners? | High | Blocks v3 data-driven model |
+| Can trajectory data be obtained from UA defence partners? | High | Blocks v4 data-driven model |
 | Does Shahed use terrain-following? | Medium | If yes, altitude is not constant — changes v1 trajectory model |
 | What is the Shahed-136 warhead fragmentation pattern? | Medium | Currently using generic estimates; unit-specific data would improve accuracy |
 | How much has wartime displacement shifted Ukrainian population? | Medium | Affects casualty model accuracy; Kontur partially accounts for it |

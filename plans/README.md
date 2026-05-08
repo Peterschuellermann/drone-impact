@@ -20,16 +20,19 @@ Implementation agent: pick the first `[ ]` plan whose dependencies are all `[x]`
 | [x] | F12 | [Single-Drone REST API](F12-api-single-drone.md) | F10, F11 |
 | [x] | F13 | [Batch REST API + Async Job Management](F13-api-batch.md) | F12 |
 | [x] | F14 | [Performance Benchmarks](F14-performance-benchmarks.md) | F12, F13 |
+
+## Version 2 — Dashboard & Operational Interface
+
+| Status | ID | Plan | Dependencies |
+|---|---|---|---|
 | [ ] | F15 | [Data Visualization Dashboard](F15-data-visualization-dashboard.md) | F12 |
 
-## Version 2 — Environmental and Engagement Refinement
+Additional v2 features (trajectory animation, real-time integration, multi-drone coordination) need plans. See `/spec/roadmap.md`.
 
-Planned after v1 is complete. See `/spec/roadmap.md`.
+## Version 3 — Environmental and Engagement Refinement
 
-## Version 3 — Manoeuvre Prediction and Data-Driven Model
+Planned after v2 is complete. Includes dashboard updates for new physics features. See `/spec/roadmap.md`.
 
-Planned after v2 is complete. See `/spec/roadmap.md`.
+## Version 4 — Manoeuvre Prediction and Data-Driven Model
 
-## Version 4 — Dashboard and Defence Planning
-
-Planned after v3 is complete. See `/spec/roadmap.md`.
+Planned after v3 is complete. Includes historical data dashboard and defence planning. See `/spec/roadmap.md`.
