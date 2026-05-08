@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import math
 import time
 
+import h3
 import numpy as np
 
 from droneimpact.casualty.engine import CasualtyEngine
@@ -14,18 +16,35 @@ from droneimpact.physics.types import TrajectoryPoint
 from droneimpact.scoring.ellipse import compute_cep, compute_impact_ellipse
 from droneimpact.scoring.explain import explain
 from droneimpact.scoring.types import (
+    EngagementZone,
     ImpactDistribution,
     ModeScore,
     PointScore,
     RecommendedEngagement,
     TrajectoryResult,
 )
+from droneimpact.scoring.zones import classify_zones
 
-COARSE_FRACTION = 0.1
-N_REFINE_CANDIDATES = 3
-COARSE_STRIDE_TARGET = 30
-REFINE_NEIGHBOR_RADIUS = 2
+SHORT_TRAJECTORY_THRESHOLD = 30
 
+# --- Miss branch cache ---
+
+_miss_cache: dict[tuple, float] = {}
+
+
+def _miss_cache_key(
+    lat: float, lon: float, agl: float, heading_deg: float,
+    n_samples: int, agl_round: float, hdg_round: float,
+) -> tuple:
+    cell = h3.latlng_to_cell(lat, lon, 8)
+    return (cell, round(agl / agl_round) * agl_round, round(heading_deg / hdg_round) * hdg_round, n_samples)
+
+
+def clear_miss_cache() -> None:
+    _miss_cache.clear()
+
+
+# --- Coordinate helpers ---
 
 def _enu_to_wgs84_fast(enu: np.ndarray, lat: float, lon: float) -> np.ndarray:
     cos_lat = np.cos(np.radians(lat))
@@ -34,9 +53,24 @@ def _enu_to_wgs84_fast(enu: np.ndarray, lat: float, lon: float) -> np.ndarray:
     return np.column_stack([out_lat, out_lon])
 
 
+def _max_frag_radius(config: AppConfig) -> float:
+    radii: list[float] = []
+    cas = config.casualty
+    if cas.blast_bands:
+        radii.extend(b.radius_m for b in cas.blast_bands)
+    if cas.frag_bands:
+        radii.extend(b.radius_m for b in cas.frag_bands)
+    if not radii:
+        radii.append(cas.fragmentation.danger_radius_m)
+    return max(radii)
+
+
 class ScoringEngine:
     def __init__(self, config: AppConfig):
         self._config = config
+        self._prescan_radius = _max_frag_radius(config)
+
+    # --- Core per-point scoring (unchanged) ---
 
     def _score_point(
         self,
@@ -99,6 +133,84 @@ class ScoringEngine:
 
         return ps, dists
 
+    # --- Miss branch with caching ---
+
+    def _compute_miss_casualties(
+        self,
+        last: TrajectoryPoint,
+        dem: DEMIndex,
+        casualty_engine: CasualtyEngine,
+        n_samples: int,
+        rng: np.random.Generator,
+    ) -> float:
+        phys = self._config.physics
+        scoring_cfg = self._config.scoring
+        last_agl = dem.msl_to_agl(last.lat, last.lon, last.altitude_m)
+
+        key = _miss_cache_key(
+            last.lat, last.lon, last_agl, last.heading_deg, n_samples,
+            scoring_cfg.miss_cache_agl_round_m, scoring_cfg.miss_cache_heading_round_deg,
+        )
+        cached = _miss_cache.get(key)
+        if cached is not None:
+            return cached
+
+        miss_enu = simulate_m1(last_agl, last.heading_deg, n_samples, phys, rng=rng)
+        miss_wgs84 = _enu_to_wgs84_fast(miss_enu, last.lat, last.lon)
+        miss_casualties = casualty_engine.compute(miss_wgs84)
+        _miss_cache[key] = miss_casualties
+        return miss_casualties
+
+    # --- Population pre-scan ---
+
+    @staticmethod
+    def _population_prescan(
+        trajectory: list[TrajectoryPoint],
+        casualty_engine: CasualtyEngine,
+        radius_m: float,
+    ) -> np.ndarray:
+        lats = np.array([pt.lat for pt in trajectory])
+        lons = np.array([pt.lon for pt in trajectory])
+        return casualty_engine.population.query_batch(lats, lons, radius_m)
+
+    # --- Dense point interpolation for high-risk stretches ---
+
+    @staticmethod
+    def _build_dense_points(
+        trajectory: list[TrajectoryPoint],
+        high_risk_mask: np.ndarray,
+        dense_spacing_m: float,
+    ) -> list[TrajectoryPoint]:
+        dense_points: list[TrajectoryPoint] = []
+        n = len(trajectory)
+
+        for i in range(n - 1):
+            if not high_risk_mask[i] and not high_risk_mask[i + 1]:
+                continue
+
+            pt_a = trajectory[i]
+            pt_b = trajectory[i + 1]
+            gap_m = pt_b.distance_from_start_m - pt_a.distance_from_start_m
+            n_interp = int(gap_m / dense_spacing_m) - 1
+            if n_interp <= 0:
+                continue
+
+            for k in range(1, n_interp + 1):
+                frac = k / (n_interp + 1)
+                dense_points.append(TrajectoryPoint(
+                    index=pt_a.index,
+                    lat=pt_a.lat + frac * (pt_b.lat - pt_a.lat),
+                    lon=pt_a.lon + frac * (pt_b.lon - pt_a.lon),
+                    altitude_m=pt_a.altitude_m + frac * (pt_b.altitude_m - pt_a.altitude_m),
+                    distance_from_start_m=pt_a.distance_from_start_m + frac * gap_m,
+                    heading_deg=pt_a.heading_deg,
+                    speed_m_s=pt_a.speed_m_s,
+                ))
+
+        return dense_points
+
+    # --- Main entry point ---
+
     def score_trajectory(
         self,
         trajectory: list[TrajectoryPoint],
@@ -116,83 +228,135 @@ class ScoringEngine:
             rng = np.random.default_rng()
 
         phys = self._config.physics
+        scoring_cfg = self._config.scoring
         n_samples = phys.n_monte_carlo_samples
-        n_coarse = max(50, int(n_samples * COARSE_FRACTION))
 
-        # Miss branch: expected casualties if drone completes trajectory
-        last = trajectory[-1]
-        last_agl = dem.msl_to_agl(last.lat, last.lon, last.altitude_m)
-        miss_enu = simulate_m1(last_agl, last.heading_deg, n_samples, phys, rng=rng)
-        miss_wgs84 = _enu_to_wgs84_fast(miss_enu, last.lat, last.lon)
-        miss_casualties = casualty_engine.compute(miss_wgs84)
-
-        n_pts = len(trajectory)
-        use_two_pass = n_pts > COARSE_STRIDE_TARGET
-
-        if not use_two_pass:
-            return self._score_all_points(
-                trajectory, dem, casualty_engine, miss_casualties, n_samples, rng,
-                t_start, compute_ellipses=True,
-            )
-
-        # --- Two-pass scoring ---
-
-        # Pass 1: coarse scan — every stride-th point with reduced samples
-        stride = max(1, n_pts // COARSE_STRIDE_TARGET)
-        coarse_indices = list(range(0, n_pts, stride))
-        if (n_pts - 1) not in coarse_indices:
-            coarse_indices.append(n_pts - 1)
-
-        coarse_scores: dict[int, PointScore] = {}
-        for i in coarse_indices:
-            pt = trajectory[i]
-            agl = dem.msl_to_agl(pt.lat, pt.lon, pt.altitude_m)
-            ps, _ = self._score_point(
-                pt, agl, n_coarse, casualty_engine, miss_casualties, rng,
-            )
-            coarse_scores[i] = ps
-
-        # Find the best coarse region
-        sorted_by_score = sorted(coarse_scores.items(), key=lambda kv: kv[1].engagement_score)
-        candidate_centres = [idx for idx, _ in sorted_by_score[:N_REFINE_CANDIDATES]]
-
-        # Pass 2: refine — full MC around each candidate
-        refine_set: set[int] = set()
-        for c in candidate_centres:
-            for j in range(max(0, c - REFINE_NEIGHBOR_RADIUS), min(n_pts, c + REFINE_NEIGHBOR_RADIUS + 1)):
-                refine_set.add(j)
-
-        refined_scores: dict[int, PointScore] = {}
-        impact_dists: list[ImpactDistribution] = []
-        for i in sorted(refine_set):
-            pt = trajectory[i]
-            agl = dem.msl_to_agl(pt.lat, pt.lon, pt.altitude_m)
-            ps, dists = self._score_point(
-                pt, agl, n_samples, casualty_engine, miss_casualties, rng,
-                compute_ellipses=True,
-            )
-            refined_scores[i] = ps
-            impact_dists.extend(dists)
-
-        # Build full trajectory scores: use refined where available, coarse otherwise.
-        # For points that were neither coarse nor refined, interpolate from neighbors.
-        all_scored = {**coarse_scores, **refined_scores}
-        point_scores = self._interpolate_scores(
-            trajectory, all_scored, miss_casualties,
+        miss_casualties = self._compute_miss_casualties(
+            trajectory[-1], dem, casualty_engine, n_samples, rng,
         )
 
-        # Recommendation comes from refined points only
-        best_refined = min(refined_scores.values(), key=lambda ps: ps.engagement_score)
-        reasoning = explain(best_refined, point_scores)
+        pop_at_points = self._population_prescan(
+            trajectory, casualty_engine, self._prescan_radius,
+        )
+
+        n_pts = len(trajectory)
+
+        if n_pts <= SHORT_TRAJECTORY_THRESHOLD:
+            result = self._score_all_points(
+                trajectory, dem, casualty_engine, miss_casualties, n_samples, rng,
+                t_start, pop_at_points, compute_ellipses=True,
+            )
+            return result
+
+        # --- Adaptive resolution for long trajectories ---
+
+        empty_thresh = scoring_cfg.population_empty_threshold
+        high_thresh = scoring_cfg.population_high_risk_threshold
+
+        # 0=empty, 1=low, 2=high
+        classifications = np.zeros(n_pts, dtype=np.int8)
+        classifications[pop_at_points > empty_thresh] = 1
+        classifications[pop_at_points >= high_thresh] = 2
+
+        high_risk_mask = classifications == 2
+
+        # Build dense interpolated points in high-risk stretches
+        dense_points = self._build_dense_points(
+            trajectory, high_risk_mask, scoring_cfg.dense_spacing_m,
+        )
+
+        # Score all non-empty original points + dense points
+        scored_originals: dict[int, PointScore] = {}
+        impact_dists: list[ImpactDistribution] = []
+        n_points_skipped = 0
+        n_points_dense = len(dense_points)
+
+        for i, pt in enumerate(trajectory):
+            if classifications[i] == 0:
+                n_points_skipped += 1
+                continue
+            agl = dem.msl_to_agl(pt.lat, pt.lon, pt.altitude_m)
+            compute_ell = classifications[i] == 2
+            ps, dists = self._score_point(
+                pt, agl, n_samples, casualty_engine, miss_casualties, rng,
+                compute_ellipses=compute_ell,
+            )
+            ps.population_within_frag_radius = float(pop_at_points[i])
+            scored_originals[i] = ps
+            impact_dists.extend(dists)
+
+        # Score dense interpolated points (find best within each high-risk stretch)
+        best_dense_per_original: dict[int, float] = {}
+        for dpt in dense_points:
+            agl = dem.msl_to_agl(dpt.lat, dpt.lon, dpt.altitude_m)
+            ps, _ = self._score_point(
+                dpt, agl, n_samples, casualty_engine, miss_casualties, rng,
+            )
+            orig_idx = dpt.index
+            if orig_idx in scored_originals:
+                current_best = best_dense_per_original.get(orig_idx)
+                if current_best is None or ps.engagement_score < current_best:
+                    best_dense_per_original[orig_idx] = ps.engagement_score
+
+        # Update original point scores: if a dense point nearby scored better,
+        # use the better score for recommendation purposes
+        for orig_idx, dense_score in best_dense_per_original.items():
+            if orig_idx in scored_originals:
+                orig = scored_originals[orig_idx]
+                if dense_score < orig.engagement_score:
+                    scored_originals[orig_idx] = PointScore(
+                        point_index=orig.point_index,
+                        lat=orig.lat,
+                        lon=orig.lon,
+                        altitude_m=orig.altitude_m,
+                        distance_from_start_m=orig.distance_from_start_m,
+                        expected_casualties=dense_score,
+                        engagement_score=dense_score,
+                        breakdown=orig.breakdown,
+                        miss_branch_expected_casualties=orig.miss_branch_expected_casualties,
+                        population_within_frag_radius=orig.population_within_frag_radius,
+                    )
+
+        # Build complete trajectory scores list
+        miss_only_score = (1.0 - self._config.engagement.p_kill) * miss_casualties
+        point_scores: list[PointScore] = []
+        for i, pt in enumerate(trajectory):
+            if i in scored_originals:
+                point_scores.append(scored_originals[i])
+            else:
+                point_scores.append(PointScore(
+                    point_index=pt.index,
+                    lat=pt.lat,
+                    lon=pt.lon,
+                    altitude_m=pt.altitude_m,
+                    distance_from_start_m=pt.distance_from_start_m,
+                    expected_casualties=miss_only_score,
+                    engagement_score=miss_only_score,
+                    breakdown={},
+                    miss_branch_expected_casualties=miss_casualties,
+                    population_within_frag_radius=float(pop_at_points[i]),
+                ))
+
+        # Interpolate between scored neighbors for unsimulated low-pop gaps
+        point_scores = self._interpolate_gaps(trajectory, point_scores, scored_originals)
+
+        # Recommendation from scored points only
+        if scored_originals:
+            best = min(scored_originals.values(), key=lambda ps: ps.engagement_score)
+        else:
+            best = point_scores[0]
+
+        zones = classify_zones(point_scores, scoring_cfg)
+        reasoning = explain(best, point_scores, zones)
 
         recommended = RecommendedEngagement(
-            point_index=best_refined.point_index,
-            lat=best_refined.lat,
-            lon=best_refined.lon,
-            altitude_m=best_refined.altitude_m,
-            distance_from_current_m=best_refined.distance_from_start_m,
-            expected_casualties=best_refined.expected_casualties,
-            engagement_score=best_refined.engagement_score,
+            point_index=best.point_index,
+            lat=best.lat,
+            lon=best.lon,
+            altitude_m=best.altitude_m,
+            distance_from_current_m=best.distance_from_start_m,
+            expected_casualties=best.expected_casualties,
+            engagement_score=best.engagement_score,
             reasoning=reasoning,
         )
 
@@ -206,8 +370,13 @@ class ScoringEngine:
                 "n_trajectory_points": n_pts,
                 "n_monte_carlo_samples": n_samples,
                 "simulation_time_ms": elapsed_ms,
+                "n_points_skipped": n_points_skipped,
+                "n_points_dense": n_points_dense,
             },
+            engagement_zones=zones,
         )
+
+    # --- Short trajectory path (preserves existing behavior) ---
 
     def _score_all_points(
         self,
@@ -218,23 +387,28 @@ class ScoringEngine:
         n_samples: int,
         rng: np.random.Generator,
         t_start: float,
+        pop_at_points: np.ndarray,
         compute_ellipses: bool = True,
     ) -> TrajectoryResult:
         point_scores: list[PointScore] = []
         impact_dists: list[ImpactDistribution] = []
 
-        for pt in trajectory:
+        for i, pt in enumerate(trajectory):
             agl = dem.msl_to_agl(pt.lat, pt.lon, pt.altitude_m)
             ps, dists = self._score_point(
                 pt, agl, n_samples, casualty_engine, miss_casualties, rng,
                 compute_ellipses=compute_ellipses,
             )
+            ps.population_within_frag_radius = float(pop_at_points[i])
             point_scores.append(ps)
             impact_dists.extend(dists)
 
         best_idx = int(np.argmin([ps.engagement_score for ps in point_scores]))
         best = point_scores[best_idx]
-        reasoning = explain(best, point_scores)
+
+        scoring_cfg = self._config.scoring
+        zones = classify_zones(point_scores, scoring_cfg)
+        reasoning = explain(best, point_scores, zones)
 
         recommended = RecommendedEngagement(
             point_index=best.point_index,
@@ -258,36 +432,38 @@ class ScoringEngine:
                 "n_monte_carlo_samples": n_samples,
                 "simulation_time_ms": elapsed_ms,
             },
+            engagement_zones=zones,
         )
 
     @staticmethod
-    def _interpolate_scores(
+    def _interpolate_gaps(
         trajectory: list[TrajectoryPoint],
+        point_scores: list[PointScore],
         scored: dict[int, PointScore],
-        miss_casualties: float,
     ) -> list[PointScore]:
-        n = len(trajectory)
+        if not scored or len(scored) == len(trajectory):
+            return point_scores
+
         scored_indices = sorted(scored.keys())
         scores_arr = np.array([scored[i].engagement_score for i in scored_indices])
-
-        all_indices = np.arange(n)
+        all_indices = np.arange(len(trajectory))
         interp_scores = np.interp(all_indices, scored_indices, scores_arr)
 
         result: list[PointScore] = []
-        for i in range(n):
+        for i, ps in enumerate(point_scores):
             if i in scored:
-                result.append(scored[i])
+                result.append(ps)
             else:
-                pt = trajectory[i]
                 result.append(PointScore(
-                    point_index=pt.index,
-                    lat=pt.lat,
-                    lon=pt.lon,
-                    altitude_m=pt.altitude_m,
-                    distance_from_start_m=pt.distance_from_start_m,
+                    point_index=ps.point_index,
+                    lat=ps.lat,
+                    lon=ps.lon,
+                    altitude_m=ps.altitude_m,
+                    distance_from_start_m=ps.distance_from_start_m,
                     expected_casualties=float(interp_scores[i]),
                     engagement_score=float(interp_scores[i]),
-                    breakdown={},
-                    miss_branch_expected_casualties=miss_casualties,
+                    breakdown=ps.breakdown,
+                    miss_branch_expected_casualties=ps.miss_branch_expected_casualties,
+                    population_within_frag_radius=ps.population_within_frag_radius,
                 ))
         return result

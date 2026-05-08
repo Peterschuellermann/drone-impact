@@ -107,12 +107,23 @@ class DataPaths(BaseModel):
     infrastructure_path: str
 
 
+class ScoringConfig(BaseModel):
+    population_empty_threshold: float = 0.0
+    population_high_risk_threshold: float = 50.0
+    dense_spacing_m: float = 50.0
+    miss_cache_agl_round_m: float = 10.0
+    miss_cache_heading_round_deg: float = 1.0
+    zone_caution_threshold: float = 0.1
+    zone_nogo_threshold: float = 1.0
+
+
 class AppConfig(BaseModel):
     version: str
     physics: PhysicsConfig
     engagement: EngagementConfig
     casualty: CasualtyConfig
     data: DataPaths
+    scoring: ScoringConfig = ScoringConfig()
 
 
 def load_config(path: str | Path = "config.yaml") -> AppConfig:

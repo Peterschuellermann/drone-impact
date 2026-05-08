@@ -62,12 +62,30 @@ class RecommendedEngagementSchema(BaseModel):
     reasoning: str
 
 
+class EngagementZoneSchema(BaseModel):
+    classification: str
+    start_index: int
+    end_index: int
+    start_distance_m: float
+    end_distance_m: float
+    start_lat: float
+    start_lon: float
+    end_lat: float
+    end_lon: float
+    peak_expected_casualties: float
+    mean_expected_casualties: float
+    population_in_zone: float
+    reasons: list[str]
+
+
 class MetadataSchema(BaseModel):
     n_trajectory_points: int
     n_monte_carlo_samples: int
     simulation_time_ms: float
     population_dataset: str
     infrastructure_dataset: str
+    n_points_skipped: int | None = None
+    n_points_dense: int | None = None
 
 
 class SingleDroneResponse(BaseModel):
@@ -77,3 +95,4 @@ class SingleDroneResponse(BaseModel):
     trajectory_scores: list[TrajectoryPointScore]
     impact_distributions: list[ImpactDistributionSchema]
     metadata: MetadataSchema
+    engagement_zones: list[EngagementZoneSchema] | None = None

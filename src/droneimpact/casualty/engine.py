@@ -18,6 +18,10 @@ class CasualtyEngine:
         self._infra = infrastructure
         self._config = config
 
+    @property
+    def population(self) -> PopulationIndex:
+        return self._pop
+
     @staticmethod
     def _lookup_band_probability(
         bands: list[CasualtyBand], distance: float

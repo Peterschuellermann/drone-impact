@@ -70,6 +70,15 @@ casualty:
       bridge: 3.0
       school: 2.0
 
+scoring:
+  population_empty_threshold: 0.0
+  population_high_risk_threshold: 50.0
+  dense_spacing_m: 50.0
+  miss_cache_agl_round_m: 10.0
+  miss_cache_heading_round_deg: 1.0
+  zone_caution_threshold: 0.1
+  zone_nogo_threshold: 1.0
+
 data:
   population_path: "./data/kontur_ukraine.gpkg"
   dem_path: "./data/ukraine_dem.tif"

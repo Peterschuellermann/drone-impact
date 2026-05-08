@@ -7,6 +7,7 @@ from fastapi import APIRouter, HTTPException, Request
 
 from droneimpact.api import get_app_state
 from droneimpact.api.schemas import (
+    EngagementZoneSchema,
     ImpactDistributionSchema,
     ImpactEllipseSchema,
     MetadataSchema,
@@ -120,6 +121,27 @@ def _build_response(
         for d in result.impact_distributions
     ]
 
+    zones = None
+    if result.engagement_zones:
+        zones = [
+            EngagementZoneSchema(
+                classification=z.classification,
+                start_index=z.start_index,
+                end_index=z.end_index,
+                start_distance_m=z.start_distance_m,
+                end_distance_m=z.end_distance_m,
+                start_lat=z.start_lat,
+                start_lon=z.start_lon,
+                end_lat=z.end_lat,
+                end_lon=z.end_lon,
+                peak_expected_casualties=z.peak_expected_casualties,
+                mean_expected_casualties=z.mean_expected_casualties,
+                population_in_zone=z.population_in_zone,
+                reasons=z.reasons,
+            )
+            for z in result.engagement_zones
+        ]
+
     return SingleDroneResponse(
         drone_id=req.drone_id,
         computed_at_utc=datetime.now(timezone.utc).isoformat(),
@@ -132,5 +154,8 @@ def _build_response(
             simulation_time_ms=elapsed_ms,
             population_dataset=state.config.data.population_path,
             infrastructure_dataset=state.config.data.infrastructure_path,
+            n_points_skipped=result.metadata.get("n_points_skipped"),
+            n_points_dense=result.metadata.get("n_points_dense"),
         ),
+        engagement_zones=zones,
     )

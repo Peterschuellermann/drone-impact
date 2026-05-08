@@ -126,6 +126,50 @@ def test_empty_trajectory_raises(scoring, flat_dem, casualty_engine):
         scoring.score_trajectory([], flat_dem, casualty_engine, (48.1, 31.0))
 
 
+def test_prescan_population_stored(scoring, short_trajectory, flat_dem, casualty_engine):
+    result = scoring.score_trajectory(
+        short_trajectory, flat_dem, casualty_engine, (48.1, 31.0),
+        rng=np.random.default_rng(0)
+    )
+    for ps in result.trajectory_scores:
+        assert hasattr(ps, "population_within_frag_radius")
+        assert isinstance(ps.population_within_frag_radius, float)
+
+
+def test_zones_generated(scoring, short_trajectory, flat_dem, casualty_engine):
+    result = scoring.score_trajectory(
+        short_trajectory, flat_dem, casualty_engine, (48.1, 31.0),
+        rng=np.random.default_rng(0)
+    )
+    assert isinstance(result.engagement_zones, list)
+    assert len(result.engagement_zones) >= 1
+
+
+def test_zones_cover_trajectory(scoring, short_trajectory, flat_dem, casualty_engine):
+    result = scoring.score_trajectory(
+        short_trajectory, flat_dem, casualty_engine, (48.1, 31.0),
+        rng=np.random.default_rng(0)
+    )
+    zones = result.engagement_zones
+    assert zones[0].start_index == 0
+    assert zones[-1].end_index == result.trajectory_scores[-1].point_index
+
+
+def test_miss_cache_hit(scoring, short_trajectory, flat_dem, casualty_engine):
+    from droneimpact.scoring.engine import _miss_cache, clear_miss_cache
+    clear_miss_cache()
+    scoring.score_trajectory(
+        short_trajectory, flat_dem, casualty_engine, (48.1, 31.0),
+        rng=np.random.default_rng(0)
+    )
+    cache_size_after_first = len(_miss_cache)
+    scoring.score_trajectory(
+        short_trajectory, flat_dem, casualty_engine, (48.1, 31.0),
+        rng=np.random.default_rng(1)
+    )
+    assert len(_miss_cache) == cache_size_after_first
+
+
 # --- Interpolation tests (I09) ---
 
 from droneimpact.physics.types import TrajectoryPoint
@@ -152,10 +196,22 @@ def _make_point_score(pt: TrajectoryPoint, score: float) -> PointScore:
     )
 
 
+def _make_full_point_scores(traj, scored):
+    """Build a point_scores list with placeholders for unscored points."""
+    result = []
+    for i, pt in enumerate(traj):
+        if i in scored:
+            result.append(scored[i])
+        else:
+            result.append(_make_point_score(pt, 0.0))
+    return result
+
+
 def test_interpolation_preserves_scored_points():
     traj = _make_trajectory(5)
     scored = {i: _make_point_score(traj[i], float(i * 10)) for i in range(5)}
-    result = ScoringEngine._interpolate_scores(traj, scored, 0.0)
+    point_scores = _make_full_point_scores(traj, scored)
+    result = ScoringEngine._interpolate_gaps(traj, point_scores, scored)
     for i in range(5):
         assert result[i] is scored[i]
 
@@ -167,7 +223,8 @@ def test_interpolation_fills_gaps():
         5: _make_point_score(traj[5], 20.0),
         9: _make_point_score(traj[9], 30.0),
     }
-    result = ScoringEngine._interpolate_scores(traj, scored, 0.0)
+    point_scores = _make_full_point_scores(traj, scored)
+    result = ScoringEngine._interpolate_gaps(traj, point_scores, scored)
     for i in range(1, 5):
         assert 10.0 < result[i].engagement_score < 20.0
     for i in range(6, 9):
@@ -181,5 +238,6 @@ def test_interpolation_output_length():
             0: _make_point_score(traj[0], 1.0),
             n - 1: _make_point_score(traj[n - 1], 2.0),
         }
-        result = ScoringEngine._interpolate_scores(traj, scored, 0.0)
+        point_scores = _make_full_point_scores(traj, scored)
+        result = ScoringEngine._interpolate_gaps(traj, point_scores, scored)
         assert len(result) == n
