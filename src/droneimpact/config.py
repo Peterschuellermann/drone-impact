@@ -88,10 +88,17 @@ class InfraConfig(BaseModel):
     weights: InfraWeights
 
 
+class CasualtyBand(BaseModel):
+    radius_m: float
+    probability: float
+
+
 class CasualtyConfig(BaseModel):
     blast: BlastParams
     fragmentation: FragParams
     infrastructure: InfraConfig
+    blast_bands: list[CasualtyBand] | None = None
+    frag_bands: list[CasualtyBand] | None = None
 
 
 class DataPaths(BaseModel):

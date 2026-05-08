@@ -50,6 +50,16 @@ casualty:
     danger_radius_m: 400.0
     p_frag_lethal: 0.5
     p_frag_danger: 0.1
+  blast_bands:
+    - {radius_m: 5, probability: 1.00}
+    - {radius_m: 15, probability: 0.50}
+    - {radius_m: 35, probability: 0.10}
+    - {radius_m: 80, probability: 0.01}
+  frag_bands:
+    - {radius_m: 20, probability: 1.00}
+    - {radius_m: 80, probability: 0.30}
+    - {radius_m: 200, probability: 0.10}
+    - {radius_m: 400, probability: 0.02}
   infrastructure:
     penalty_radius_m: 500.0
     max_penalty: 10.0
