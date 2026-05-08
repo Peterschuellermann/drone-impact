@@ -167,6 +167,108 @@ These weights represent the probability of each terminal mode given that the mis
 
 ---
 
+## Missile System Assumptions
+
+The current model uses a single flat `p_kill = 0.50` for all systems. When per-system support is added, each system will need its own P_kill estimate, mode weight profile, and engagement envelope. The values below are working estimates from open-source and declassified material — none have been validated against operational data.
+
+**Kill mechanism governs mode weights.** A cannon burst perforating the airframe produces different terminal behaviour than a proximity-fuze warhead detonating nearby. Mode weights must therefore vary by weapon system, not just by airframe.
+
+---
+
+### Gepard SPAAG (twin 35 mm Oerlikon)
+
+| Parameter | Estimate | Note |
+|---|---|---|
+| P_kill per engagement | 0.75–0.90 | Highly effective against slow, low-altitude targets; multiple rounds per burst |
+| Kill mechanism | Cannon burst; multiple perforation hits | Tail-aspect geometry typical |
+| Mode weights | M1: 0.55, M2: 0.25, M3: 0.20 | Propulsion/engine hit dominant in tail chase; structural break-up less likely from small-calibre rounds |
+| Max slant range | ~3.5 km | |
+| Altitude envelope | 0–3 km | |
+
+**⚠ Unverified:** P_kill derived from Ukrainian AAG unit reports (anecdotal). Mode weights are engineering estimates.
+
+---
+
+### IRIS-T SLM
+
+| Parameter | Estimate | Note |
+|---|---|---|
+| P_kill per engagement | 0.85–0.95 | Optimised for low-speed, low-altitude targets; high single-shot Pk |
+| Kill mechanism | Blast-fragmentation warhead, proximity fuze ~2–5 m stand-off | |
+| Mode weights | M3: 0.55, M1: 0.30, M2: 0.15 | Proximity blast causes structural damage; propulsion loss secondary |
+| Max slant range | ~40 km | |
+| Altitude envelope | 0.01–20 km | |
+
+**⚠ Unverified:** Manufacturer states high Pk against cruise missiles; Shahed is slower and lower — likely better, but no declassified figure available.
+
+---
+
+### Buk-M1 (9M38 missile)
+
+| Parameter | Estimate | Note |
+|---|---|---|
+| P_kill per engagement | 0.45–0.65 | Designed for fast medium-altitude aircraft; Shahed's low RCS and low altitude reduce effectiveness |
+| Kill mechanism | Large blast-fragmentation warhead (~70 kg), proximity fuze | |
+| Mode weights | M3: 0.60, M1: 0.25, M2: 0.15 | Large warhead produces near-complete structural destruction |
+| Max slant range | ~35 km | |
+| Altitude envelope | 0.03–22 km | Low-altitude performance degraded vs design envelope |
+
+**⚠ Unverified:** Shahed has low radar cross-section; Buk-M1 radar may struggle at engagement distances vs design targets.
+
+---
+
+### MANPAD (Stinger, Igla-S, Mistral)
+
+| Parameter | Estimate | Note |
+|---|---|---|
+| P_kill per engagement | 0.50–0.70 | Single small warhead; tail-chase geometry required |
+| Kill mechanism | IR-homing, small blast-fragmentation warhead (~1–2 kg); hits engine exhaust or tail | |
+| Mode weights | M1: 0.65, M2: 0.20, M3: 0.15 | Engine/propulsion hit strongly dominant due to IR seeker geometry |
+| Max slant range | ~5–8 km (system-dependent) | |
+| Altitude envelope | 0.01–4.5 km | |
+
+**⚠ Unverified:** IR seekers may be confused by solar background or ground heat in summer; P_kill may degrade under those conditions.
+
+---
+
+### NASAMS (AIM-120 AMRAAM-ER)
+
+| Parameter | Estimate | Note |
+|---|---|---|
+| P_kill per engagement | 0.80–0.90 | Active radar homing; effective across wide altitude range |
+| Kill mechanism | Blast-fragmentation warhead (~23 kg), proximity fuze | |
+| Mode weights | M3: 0.50, M1: 0.30, M2: 0.20 | Similar to IRIS-T; proximity warhead tends toward structural damage |
+| Max slant range | ~25 km (AMRAAM) / ~50 km (AMRAAM-ER) | |
+| Altitude envelope | 0.03–15 km | |
+
+**⚠ Unverified:** AMRAAM designed for air-to-air; NASAMS adaptation against cruise missiles is operationally confirmed but specific Pk figures are classified.
+
+---
+
+### ZSU-23-4 Shilka / ZU-23-2
+
+| Parameter | Estimate | Note |
+|---|---|---|
+| P_kill per engagement | 0.35–0.55 | Effective at close range but radar is short-range and less precise than Gepard |
+| Kill mechanism | 23 mm cannon burst, multiple hits | |
+| Mode weights | M1: 0.50, M2: 0.30, M3: 0.20 | Similar to Gepard but smaller calibre; less structural damage per hit |
+| Max slant range | ~2–2.5 km | |
+| Altitude envelope | 0–1.5 km | |
+
+**⚠ Unverified:** ZU-23-2 is manually aimed — P_kill is highly operator-dependent.
+
+---
+
+### Cross-system open questions
+
+**? P_kill varies with range and aspect:** All estimates above assume optimal engagement geometry. P_kill at max range is substantially lower than at optimal range. A range-degraded P_kill curve would require a lookup table (range, aspect angle → P_kill) rather than a scalar.
+
+**? Multi-shot doctrine:** Some systems (Gepard, ZSU) fire multiple short bursts. Others (IRIS-T, Buk) may fire salvos of 2 missiles for high-value targets. Single-shot P_kill values above assume one engagement attempt.
+
+**? Mode weights depend on hit location:** A cannon burst hitting the nose vs the tail produces different outcomes. This is not modelled — mode weights are averages over likely hit distributions for each weapon's typical engagement geometry.
+
+---
+
 ## Priority Summary
 
 The assumptions most likely to produce materially wrong recommendations, in rough priority order:

@@ -51,14 +51,6 @@
 - P_kill varies by system, slant range, and aspect angle
 - Lookup table per system from declassified or open-source performance data
 
-**Launcher position as input**
-- Engagement geometry check: verify that the drone at evaluation point P_i is within the missile system's engagement envelope before scoring
-- Filter out evaluation points that are out of range
-
-**DEM-aware terrain shadowing**
-- Check line-of-sight from launcher to drone at each evaluation point
-- Points that are terrain-masked are flagged as unengageable
-
 **Building sheltering factor**
 - Add building-type sheltering model to casualty calculation
 - Concrete structures reduce blast lethality by ~80%; wooden structures provide significant fragmentation protection
@@ -109,6 +101,17 @@
 - New endpoint: `POST /predict/trajectory`
 - Input: current state vector
 - Output: set of candidate trajectories with probabilities
+
+**Launcher position and engagement envelope**
+- Add launcher position (lat/lon) and missile system type as optional inputs to the analyze endpoints
+- Filter out trajectory evaluation points that are outside the system's max slant range
+- Per-system engagement envelopes defined in config (range, altitude floor/ceiling)
+- Moved from v2: requires the per-system P_kill and mode weight tables that v2 introduces; the envelope check is only meaningful once the system type is known
+
+**DEM-aware terrain shadowing**
+- Check line-of-sight from launcher position to drone at each evaluation point
+- Points that are terrain-masked are flagged as unengageable and excluded from the recommendation
+- Depends on launcher position input (above)
 
 ---
 
