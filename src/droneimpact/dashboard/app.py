@@ -1,16 +1,19 @@
 from __future__ import annotations
 
+import folium
 import streamlit as st
 from streamlit_folium import st_folium
 
 from droneimpact.dashboard.batch_input import render_batch_input
 from droneimpact.dashboard.components import (
     make_batch_map,
+    make_coloured_trajectory,
     make_impact_scatter,
     make_priority_table,
     make_risk_profile,
     make_stats_panel,
     make_trajectory_map,
+    prepare_animation_frames,
 )
 from droneimpact.dashboard.utils import call_api, call_batch_api, export_geojson
 
@@ -82,6 +85,38 @@ def _render_single_drone():
             file_name="droneimpact_result.geojson",
             mime="application/geo+json",
         )
+
+        st.divider()
+        st.subheader("Trajectory Replay")
+
+        frames = prepare_animation_frames(result, speed_m_s)
+
+        if frames:
+            n_frames = len(frames)
+            step = st.slider("Evaluation point", 0, n_frames - 1, 0, key="replay_step")
+            frame = frames[step]
+
+            col_map, col_stats = st.columns([2, 1])
+
+            with col_map:
+                coloured_map = make_coloured_trajectory(result)
+                folium.CircleMarker(
+                    [frame["lat"], frame["lon"]],
+                    radius=10, color=frame["colour"], fill=True,
+                    fill_opacity=1.0, weight=3,
+                ).add_to(coloured_map)
+                st_folium(coloured_map, use_container_width=True, height=450)
+
+            with col_stats:
+                is_rec = frame["is_recommended"]
+                if is_rec:
+                    st.success("RECOMMENDED ENGAGEMENT POINT")
+                st.metric("Position", f"{frame['lat']:.5f}, {frame['lon']:.5f}")
+                st.metric("Altitude", f"{frame['altitude_m']:.0f} m")
+                st.metric("Distance", f"{frame['distance_from_current_m'] / 1000:.1f} km")
+                st.metric("Expected Casualties", f"{frame['expected_casualties']:.4f}")
+                st.metric("Engagement Score", f"{frame['engagement_score']:.4f}")
+                st.caption(f"Point {step + 1} / {n_frames}")
     else:
         st.info("Configure drone parameters in the sidebar and click **Analyze** to begin.")
 

@@ -32,9 +32,9 @@ Implementation agent: pick the first `[ ]` plan whose dependencies are all `[x]`
 
 | Status | ID | Plan | Dependencies |
 |---|---|---|---|
-| [x] | I08 | [M2 Altitude-Dependent Air Density](improvements/I08-m2-altitude-density.md) | — |
-| [x] | I09 | [Score Interpolation Test Coverage](improvements/I09-interpolation-tests.md) | — |
-| [x] | I10 | [Banded/Two-Zone Casualty Equivalence Test](improvements/I10-casualty-equivalence-test.md) | — |
+| [ ] | I08 | [M2 Altitude-Dependent Air Density](improvements/I08-m2-altitude-density.md) | — |
+| [ ] | I09 | [Score Interpolation Test Coverage](improvements/I09-interpolation-tests.md) | — |
+| [ ] | I10 | [Banded/Two-Zone Casualty Equivalence Test](improvements/I10-casualty-equivalence-test.md) | — |
 
 ## 1.1 — Dashboard & Deployment
 
@@ -42,7 +42,7 @@ Implementation agent: pick the first `[ ]` plan whose dependencies are all `[x]`
 |---|---|---|---|
 | [x] | F15 | [Data Visualization Dashboard](F15-data-visualization-dashboard.md) | F12 |
 | [x] | F16 | [Batch Visualization](F16-batch-visualization.md) | F15, F13 |
-| [ ] | F17 | [Trajectory Animation](F17-trajectory-animation.md) | F15 |
+| [x] | F17 | [Trajectory Animation](F17-trajectory-animation.md) | F15 |
 | [ ] | F18 | [Docker Compose Deployment](F18-docker-compose.md) | F15 |
 
 ## 1.2 — Environmental and Engagement Refinement

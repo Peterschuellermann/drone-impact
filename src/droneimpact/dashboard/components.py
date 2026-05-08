@@ -374,3 +374,69 @@ def make_priority_table(batch_result: dict) -> list[dict]:
         })
     rows.sort(key=lambda r: r["expected_casualties"], reverse=True)
     return rows
+
+
+def prepare_animation_frames(result: dict, speed_m_s: float = 51.4) -> list[dict]:
+    scores = result["trajectory_scores"]
+    rec_idx = result["recommended_engagement"]["point_index"]
+    if not scores:
+        return []
+
+    max_score = max(pt["engagement_score"] for pt in scores) or 1.0
+    cumulative_time = 0.0
+
+    frames = []
+    for i, pt in enumerate(scores):
+        if i > 0:
+            prev = scores[i - 1]
+            dx = pt["distance_from_current_m"] - prev["distance_from_current_m"]
+            cumulative_time += max(dx, 0) / speed_m_s
+
+        frames.append({
+            "lat": pt["lat"],
+            "lon": pt["lon"],
+            "altitude_m": pt["altitude_m"],
+            "distance_from_current_m": pt["distance_from_current_m"],
+            "expected_casualties": pt["expected_casualties"],
+            "engagement_score": pt["engagement_score"],
+            "is_recommended": pt["point_index"] == rec_idx,
+            "colour": _score_colour(pt["engagement_score"], max_score),
+            "time_s": cumulative_time,
+            "point_index": pt["point_index"],
+        })
+
+    return frames
+
+
+def make_coloured_trajectory(result: dict) -> folium.Map:
+    scores = result["trajectory_scores"]
+    rec = result["recommended_engagement"]
+
+    if not scores:
+        return folium.Map(location=[rec["lat"], rec["lon"]], zoom_start=8)
+
+    max_score = max(pt["engagement_score"] for pt in scores) or 1.0
+    mid = scores[len(scores) // 2]
+    m = folium.Map(location=[mid["lat"], mid["lon"]], zoom_start=8, tiles="OpenStreetMap")
+
+    for i in range(len(scores) - 1):
+        a, b = scores[i], scores[i + 1]
+        colour = _score_colour(a["engagement_score"], max_score)
+        folium.PolyLine(
+            [[a["lat"], a["lon"]], [b["lat"], b["lon"]]],
+            color=colour, weight=5, opacity=0.9,
+        ).add_to(m)
+
+    folium.Marker(
+        [rec["lat"], rec["lon"]],
+        icon=folium.Icon(color="red", icon="star", prefix="fa"),
+        tooltip="Recommended engagement point",
+    ).add_to(m)
+
+    coords = [[pt["lat"], pt["lon"]] for pt in scores]
+    m.fit_bounds([
+        [min(p[0] for p in coords) - 0.02, min(p[1] for p in coords) - 0.02],
+        [max(p[0] for p in coords) + 0.02, max(p[1] for p in coords) + 0.02],
+    ])
+
+    return m
