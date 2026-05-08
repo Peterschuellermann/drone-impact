@@ -36,6 +36,7 @@ class PhysicsConfig(BaseModel):
     m3_dt_s: float
     m3_max_steps: int
     m3_pitch_range_deg: float = 20.0
+    atmosphere_scale_height_m: float = 8500.0
 
 
 class ModeWeights(BaseModel):

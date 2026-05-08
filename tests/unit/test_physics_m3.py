@@ -1,3 +1,5 @@
+import math
+
 import numpy as np
 import pytest
 
@@ -46,3 +48,25 @@ def test_deterministic_with_seed(config):
     p1 = simulate_m3(400.0, 45.0, 51.4, 50, config.physics, rng=np.random.default_rng(5))
     p2 = simulate_m3(400.0, 45.0, 51.4, 50, config.physics, rng=np.random.default_rng(5))
     assert np.allclose(p1, p2)
+
+
+def test_high_altitude_extends_range(config):
+    """At 2000 m the lower air density should produce noticeably longer range than at 100 m."""
+    n = 5000
+    low = simulate_m3(100.0, 0.0, 51.4, n, config.physics, rng=np.random.default_rng(99))
+    high = simulate_m3(2000.0, 0.0, 51.4, n, config.physics, rng=np.random.default_rng(99))
+    mean_low = float(np.sqrt((low ** 2).sum(axis=1)).mean())
+    mean_high = float(np.sqrt((high ** 2).sum(axis=1)).mean())
+    # High altitude must produce longer range; the ratio should exceed 1.1
+    # because both the longer fall time and lower density contribute.
+    assert mean_high / mean_low > 1.1
+
+
+def test_density_at_1000m(config):
+    """Verify the exponential atmosphere model: at 1000 m, density ~ 89% of sea level."""
+    scale_height = config.physics.atmosphere_scale_height_m
+    rho_sea = 1.225
+    rho_1000 = rho_sea * math.exp(-1000.0 / scale_height)
+    ratio = rho_1000 / rho_sea
+    # exp(-1000/8500) ~ 0.889
+    assert 0.88 < ratio < 0.90
