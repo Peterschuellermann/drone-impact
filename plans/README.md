@@ -20,6 +20,7 @@ Implementation agent: pick the first `[ ]` plan whose dependencies are all `[x]`
 | [ ] | F12 | [Single-Drone REST API](F12-api-single-drone.md) | F10, F11 |
 | [ ] | F13 | [Batch REST API + Async Job Management](F13-api-batch.md) | F12 |
 | [ ] | F14 | [Performance Benchmarks](F14-performance-benchmarks.md) | F12, F13 |
+| [ ] | F15 | [Data Visualization Dashboard](F15-data-visualization-dashboard.md) | F12 |
 
 ## Version 2 — Environmental and Engagement Refinement
 
