@@ -84,6 +84,11 @@ scoring:
   zone_caution_threshold: 0.1
   zone_nogo_threshold: 1.0
 
+parallelism:
+  point_workers: 1    # per-point thread parallelism; 1 = sequential (GIL limits benefit)
+  batch_workers: 0    # per-drone process parallelism; 0 = auto (cpu_count)
+  batch_parallel_threshold: 2
+
 data:
   population_path: "./data/kontur_ukraine.gpkg"
   dem_path: "./data/ukraine_dem.tif"

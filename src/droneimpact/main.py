@@ -1,13 +1,15 @@
 from __future__ import annotations
 
 import logging
+import multiprocessing as mp
 import time
+from concurrent.futures import ProcessPoolExecutor
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 
 from droneimpact.api.analyze import router as analyze_router
-from droneimpact.api.batch import JobStore, router as batch_router
+from droneimpact.api.batch import JobStore, _init_batch_worker, router as batch_router
 from droneimpact.api.health import router as health_router
 from droneimpact.config import load_config
 from droneimpact.data.dem import DEMIndex
@@ -27,6 +29,7 @@ async def lifespan(app: FastAPI):
     app.state.population = None
     app.state.infrastructure = None
     app.state.job_store = JobStore()
+    app.state.batch_executor = None
 
     try:
         t0 = time.perf_counter()
@@ -58,7 +61,34 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.warning("Failed to load data: %s — starting in degraded mode", e)
 
+    n_batch_workers = cfg.parallelism.effective_batch_workers
+    if n_batch_workers > 1 and app.state.data_loaded:
+        try:
+            from droneimpact.api import AppState
+            state_dict = AppState(
+                config=app.state.config,
+                dem=app.state.dem,
+                population=app.state.population,
+                infrastructure=app.state.infrastructure,
+                data_loaded=True,
+                population_cells=app.state.population_cells,
+            )
+            ctx = mp.get_context("fork")
+            executor = ProcessPoolExecutor(
+                max_workers=n_batch_workers,
+                mp_context=ctx,
+                initializer=_init_batch_worker,
+                initargs=(state_dict,),
+            )
+            app.state.batch_executor = executor
+            logger.info("Batch ProcessPoolExecutor started with %d workers", n_batch_workers)
+        except Exception as e:
+            logger.warning("Failed to create batch executor: %s — batch will run sequentially", e)
+
     yield
+
+    if app.state.batch_executor is not None:
+        app.state.batch_executor.shutdown(wait=False)
 
 
 def create_app() -> FastAPI:

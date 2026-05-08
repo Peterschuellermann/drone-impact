@@ -176,10 +176,13 @@ A server with 2 GB RAM is sufficient. 4 GB recommended for headroom.
 For ≤ 5 drones: synchronous, return results in response.  
 For > 5 drones or `async: true`: return job ID, process in background thread pool.
 
-**Parallelism:** Python's GIL prevents `ThreadPoolExecutor` from parallelising CPU-bound NumPy work. Two options:
+**Parallelism:** Two levels implemented, configurable via `config.yaml` `parallelism` section:
 
-1. **Preferred (v1):** Batch all evaluation points into a single vectorised NumPy/Numba operation — no thread pool needed. This is already the recommended approach for the physics engine.
-2. **For multi-drone batch:** Use `concurrent.futures.ProcessPoolExecutor` with `max_workers = cpu_count()`. Data indices (population, DEM, infrastructure) must be loaded in each worker process via `initializer` or shared via `multiprocessing.shared_memory`. Each drone is processed independently (no shared mutable state).
+1. **Per-drone batch parallelism (ProcessPoolExecutor):** `_execute_batch` submits each drone to a process pool created at server startup. Workers use `fork` start method and inherit pre-loaded data indices (DEM, population, infrastructure) via copy-on-write — no serialization or memory duplication. Each drone is fully independent. Observed speedup: **~11x** for 10 drones on 14 cores. Configurable via `batch_workers` (default: `0` = cpu_count). `batch_parallel_threshold` controls the minimum drone count to trigger parallelism (default: 2).
+
+2. **Per-point scoring parallelism (ThreadPoolExecutor):** `ScoringEngine._score_points_parallel` distributes evaluation points across threads. Each point gets an independent RNG via `SeedSequence.spawn()` for deterministic results regardless of thread scheduling. However, benchmarking showed Python's GIL limits effectiveness — thread overhead and GIL contention negate gains even though NumPy releases the GIL during array operations. Default is `point_workers: 1` (sequential). The infrastructure is retained for future use with Numba `nogil` JIT compilation.
+
+When batch parallelism is active, per-point threading inside each worker is forced to 1 to avoid oversubscription.
 
 **Job storage (v1):** In-memory dict `job_id → BatchOutput`. Completed jobs expire after 1 hour (TTL). A background timer or lazy eviction on access is sufficient. Replace with Redis or a database in v2.
 

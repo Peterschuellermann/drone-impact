@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from pathlib import Path
 
 import yaml
@@ -140,6 +141,20 @@ class ScenarioConfig(BaseModel):
     max_range_m: int = 250_000
 
 
+class ParallelismConfig(BaseModel):
+    point_workers: int = 0
+    batch_workers: int = 0
+    batch_parallel_threshold: int = 2
+
+    @property
+    def effective_point_workers(self) -> int:
+        return self.point_workers or os.cpu_count() or 1
+
+    @property
+    def effective_batch_workers(self) -> int:
+        return self.batch_workers or os.cpu_count() or 1
+
+
 class AppConfig(BaseModel):
     version: str
     physics: PhysicsConfig
@@ -148,6 +163,7 @@ class AppConfig(BaseModel):
     data: DataPaths
     scoring: ScoringConfig = ScoringConfig()
     scenarios: list[ScenarioConfig] = []
+    parallelism: ParallelismConfig = ParallelismConfig()
 
 
 def load_config(path: str | Path = "config.yaml") -> AppConfig:

@@ -5,6 +5,7 @@ import threading
 import time
 import traceback
 import uuid
+from concurrent.futures import ProcessPoolExecutor, as_completed
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Any
@@ -90,9 +91,26 @@ class BatchRequest(BaseModel):
     async_: bool = Field(default=False, alias="async")
 
 
+# ── Worker process state ──────────────────────────────────────────────────────
+
+_worker_state = None
+
+
+def _init_batch_worker(state_dict: dict) -> None:
+    global _worker_state
+    _worker_state = state_dict
+
+
+def _analyze_one_in_worker(drone_req_dict: dict) -> dict:
+    """Top-level function for ProcessPoolExecutor — must be picklable."""
+    state = _worker_state
+    drone_req = SingleDroneRequest.model_validate(drone_req_dict)
+    return _analyze_one(drone_req, state, point_workers=1)
+
+
 # ── Execution ──────────────────────────────────────────────────────────────────
 
-def _analyze_one(drone_req: SingleDroneRequest, state) -> dict:
+def _analyze_one(drone_req: SingleDroneRequest, state, point_workers: int | None = None) -> dict:
     sv = StateVector(
         lat=drone_req.trajectory.lat,
         lon=drone_req.trajectory.lon,
@@ -106,7 +124,7 @@ def _analyze_one(drone_req: SingleDroneRequest, state) -> dict:
         max_range_m=drone_req.max_range_m,
     )
     casualty_engine = CasualtyEngine(state.population, state.infrastructure, state.config.casualty)
-    scoring_engine = ScoringEngine(config=state.config)
+    scoring_engine = ScoringEngine(config=state.config, max_point_workers=point_workers)
     t0 = time.perf_counter()
     result = scoring_engine.score_trajectory(
         trajectory=trajectory,
@@ -118,22 +136,41 @@ def _analyze_one(drone_req: SingleDroneRequest, state) -> dict:
     return _build_response(drone_req, result, elapsed_ms, state).model_dump()
 
 
-def _execute_batch(batch_request: BatchRequest, state) -> dict:
+def _execute_batch(batch_request: BatchRequest, state, executor: ProcessPoolExecutor | None = None) -> dict:
+    n_drones = len(batch_request.drones)
+    threshold = state.config.parallelism.batch_parallel_threshold
+    use_parallel = executor is not None and n_drones >= threshold
+
     results = []
     errors = []
-    for drone_req in batch_request.drones:
-        try:
-            results.append(_analyze_one(drone_req, state))
-        except Exception as exc:
-            logger.warning(
-                "Drone %s failed: %s",
-                drone_req.drone_id or "unknown",
-                traceback.format_exc(),
-            )
-            errors.append({
-                "drone_id": drone_req.drone_id or "unknown",
-                "error": str(exc),
-            })
+
+    if use_parallel:
+        futures = {}
+        for drone_req in batch_request.drones:
+            fut = executor.submit(_analyze_one_in_worker, drone_req.model_dump())
+            futures[fut] = drone_req.drone_id or "unknown"
+
+        for fut in as_completed(futures):
+            drone_id = futures[fut]
+            try:
+                results.append(fut.result())
+            except Exception as exc:
+                logger.warning("Drone %s failed: %s", drone_id, traceback.format_exc())
+                errors.append({"drone_id": drone_id, "error": str(exc)})
+    else:
+        for drone_req in batch_request.drones:
+            try:
+                results.append(_analyze_one(drone_req, state))
+            except Exception as exc:
+                logger.warning(
+                    "Drone %s failed: %s",
+                    drone_req.drone_id or "unknown",
+                    traceback.format_exc(),
+                )
+                errors.append({
+                    "drone_id": drone_req.drone_id or "unknown",
+                    "error": str(exc),
+                })
 
     if not results and errors:
         status = "failed"
@@ -151,9 +188,10 @@ def _execute_batch(batch_request: BatchRequest, state) -> dict:
     }
 
 
-def _run_batch_job(batch_id: str, batch_request: BatchRequest, state, job_store: JobStore):
+def _run_batch_job(batch_id: str, batch_request: BatchRequest, state, job_store: JobStore,
+                   executor: ProcessPoolExecutor | None = None):
     try:
-        result = _execute_batch(batch_request, state)
+        result = _execute_batch(batch_request, state, executor=executor)
         job_store.update(batch_id, status=result["status"], result=result,
                          completed_at=time.time())
     except Exception as exc:
@@ -171,19 +209,21 @@ def analyze_batch(
     if not state.data_loaded:
         raise HTTPException(status_code=503, detail="Data not loaded. Check /health.")
 
+    executor = getattr(request.app.state, "batch_executor", None)
+
     use_async = body.async_ or len(body.drones) > SYNC_THRESHOLD
     job = request.app.state.job_store.create(body.batch_id)
 
     if use_async:
         thread = threading.Thread(
             target=_run_batch_job,
-            args=(job.batch_id, body, state, request.app.state.job_store),
+            args=(job.batch_id, body, state, request.app.state.job_store, executor),
         )
         thread.start()
         return {"batch_id": job.batch_id, "status": "processing"}
 
     body.batch_id = job.batch_id
-    result = _execute_batch(body, state)
+    result = _execute_batch(body, state, executor=executor)
     request.app.state.job_store.update(
         job.batch_id, status=result["status"], result=result, completed_at=time.time()
     )

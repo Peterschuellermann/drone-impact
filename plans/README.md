@@ -35,6 +35,7 @@ Implementation agent: pick the first `[ ]` plan whose dependencies are all `[x]`
 | [x] | I08 | [M2 Altitude-Dependent Air Density](improvements/I08-m2-altitude-density.md) | — |
 | [x] | I09 | [Score Interpolation Test Coverage](improvements/I09-interpolation-tests.md) | — |
 | [x] | I10 | [Banded/Two-Zone Casualty Equivalence Test](improvements/I10-casualty-equivalence-test.md) | — |
+| [x] | I11 | [Parallel Computation](improvements/I11-parallel-computation.md) | — |
 
 ## 1.1 — Dashboard & Deployment
 

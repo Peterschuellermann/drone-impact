@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import math
 import time
+from concurrent.futures import ThreadPoolExecutor
 
 import h3
 import numpy as np
@@ -67,9 +68,13 @@ def _max_frag_radius(config: AppConfig) -> float:
 
 
 class ScoringEngine:
-    def __init__(self, config: AppConfig):
+    def __init__(self, config: AppConfig, max_point_workers: int | None = None):
         self._config = config
         self._prescan_radius = _max_frag_radius(config)
+        if max_point_workers is not None:
+            self._max_workers = max_point_workers
+        else:
+            self._max_workers = config.parallelism.effective_point_workers
 
     # --- Core per-point scoring ---
 
@@ -392,32 +397,45 @@ class ScoringEngine:
             trajectory, high_risk_mask, scoring_cfg.dense_spacing_m,
         )
 
-        scored_originals: dict[int, PointScore] = {}
-        impact_dists: list[ImpactDistribution] = []
         n_points_skipped = 0
         n_points_dense = len(dense_points)
 
+        # Build work items for original non-empty points
+        orig_work: list[tuple[int, TrajectoryPoint, float, bool]] = []
         for i, pt in enumerate(trajectory):
             if classifications[i] == 0:
                 n_points_skipped += 1
                 continue
             agl = dem.msl_to_agl(pt.lat, pt.lon, pt.altitude_m)
             compute_ell = classifications[i] == 2
-            ps, dists = self._score_point(
-                pt, agl, n_samples, casualty_engine, miss_casualties, rng,
-                compute_ellipses=compute_ell,
-            )
+            orig_work.append((i, pt, agl, compute_ell))
+
+        # Build work items for dense interpolated points
+        dense_work: list[tuple[int, TrajectoryPoint, float, bool]] = []
+        for dpt in dense_points:
+            agl = dem.msl_to_agl(dpt.lat, dpt.lon, dpt.altitude_m)
+            dense_work.append((dpt.index, dpt, agl, False))
+
+        base_seed = rng.bit_generator.seed_seq
+
+        # Score original + dense in parallel
+        orig_results = self._score_points_parallel(
+            orig_work, n_samples, casualty_engine, miss_casualties, base_seed,
+        )
+        dense_seed = base_seed.spawn(1)[0]
+        dense_results = self._score_points_parallel(
+            dense_work, n_samples, casualty_engine, miss_casualties, dense_seed,
+        )
+
+        scored_originals: dict[int, PointScore] = {}
+        impact_dists: list[ImpactDistribution] = []
+        for i, ps, dists in orig_results:
             ps.population_within_frag_radius = float(pop_at_points[i])
             scored_originals[i] = ps
             impact_dists.extend(dists)
 
         best_dense_per_original: dict[int, float] = {}
-        for dpt in dense_points:
-            agl = dem.msl_to_agl(dpt.lat, dpt.lon, dpt.altitude_m)
-            ps, _ = self._score_point(
-                dpt, agl, n_samples, casualty_engine, miss_casualties, rng,
-            )
-            orig_idx = dpt.index
+        for orig_idx, ps, _ in dense_results:
             if orig_idx in scored_originals:
                 current_best = best_dense_per_original.get(orig_idx)
                 if current_best is None or ps.engagement_score < current_best:
@@ -466,6 +484,39 @@ class ScoringEngine:
             point_scores, impact_dists, t_start, n_samples, n_pts, pop_at_points,
         )
 
+    # --- Parallel scoring helpers ---
+
+    def _score_points_parallel(
+        self,
+        work_items: list[tuple[int, TrajectoryPoint, float, bool]],
+        n_samples: int,
+        casualty_engine: CasualtyEngine,
+        miss_casualties: float,
+        base_seed: np.random.SeedSequence,
+    ) -> list[tuple[int, PointScore, list[ImpactDistribution]]]:
+        child_seeds = base_seed.spawn(len(work_items))
+        point_rngs = [np.random.default_rng(s) for s in child_seeds]
+
+        def _do_one(idx: int) -> tuple[int, PointScore, list[ImpactDistribution]]:
+            i, pt, agl, compute_ell = work_items[idx]
+            ps, dists = self._score_point(
+                pt, agl, n_samples, casualty_engine, miss_casualties,
+                point_rngs[idx], compute_ellipses=compute_ell,
+            )
+            return i, ps, dists
+
+        results: list[tuple[int, PointScore, list[ImpactDistribution]]] = []
+
+        if self._max_workers <= 1 or len(work_items) <= 1:
+            for idx in range(len(work_items)):
+                results.append(_do_one(idx))
+        else:
+            n_workers = min(self._max_workers, len(work_items))
+            with ThreadPoolExecutor(max_workers=n_workers) as pool:
+                results = list(pool.map(_do_one, range(len(work_items))))
+
+        return results
+
     # --- Short trajectory path ---
 
     def _score_all_points(
@@ -480,17 +531,21 @@ class ScoringEngine:
         pop_at_points: np.ndarray,
         compute_ellipses: bool = True,
     ) -> TrajectoryResult:
-        point_scores: list[PointScore] = []
-        impact_dists: list[ImpactDistribution] = []
-
+        work_items = []
         for i, pt in enumerate(trajectory):
             agl = dem.msl_to_agl(pt.lat, pt.lon, pt.altitude_m)
-            ps, dists = self._score_point(
-                pt, agl, n_samples, casualty_engine, miss_casualties, rng,
-                compute_ellipses=compute_ellipses,
-            )
+            work_items.append((i, pt, agl, compute_ellipses))
+
+        base_seed = rng.bit_generator.seed_seq
+        scored = self._score_points_parallel(
+            work_items, n_samples, casualty_engine, miss_casualties, base_seed,
+        )
+
+        point_scores: list[PointScore] = [None] * len(trajectory)  # type: ignore[list-item]
+        impact_dists: list[ImpactDistribution] = []
+        for i, ps, dists in scored:
             ps.population_within_frag_radius = float(pop_at_points[i])
-            point_scores.append(ps)
+            point_scores[i] = ps
             impact_dists.extend(dists)
 
         return self._apply_safe_intercept_constraint(
