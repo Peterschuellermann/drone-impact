@@ -478,7 +478,10 @@ class ScoringEngine:
                     population_within_frag_radius=float(pop_at_points[i]),
                 ))
 
-        point_scores = self._interpolate_gaps(trajectory, point_scores, scored_originals)
+        point_scores = self._interpolate_gaps(
+            trajectory, point_scores, scored_originals,
+            pop_at_points, empty_thresh,
+        )
 
         return self._apply_safe_intercept_constraint(
             point_scores, impact_dists, t_start, n_samples, n_pts, pop_at_points,
@@ -557,6 +560,8 @@ class ScoringEngine:
         trajectory: list[TrajectoryPoint],
         point_scores: list[PointScore],
         scored: dict[int, PointScore],
+        pop_at_points: np.ndarray | None = None,
+        empty_threshold: float = 0.0,
     ) -> list[PointScore]:
         if not scored or len(scored) == len(trajectory):
             return point_scores
@@ -569,6 +574,8 @@ class ScoringEngine:
         result: list[PointScore] = []
         for i, ps in enumerate(point_scores):
             if i in scored:
+                result.append(ps)
+            elif pop_at_points is not None and pop_at_points[i] <= empty_threshold:
                 result.append(ps)
             else:
                 result.append(PointScore(

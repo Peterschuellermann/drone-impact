@@ -321,3 +321,102 @@ def test_disabled_mode_fewer_impact_distributions(config, short_trajectory, flat
         rng=np.random.default_rng(0),
     )
     assert len(result.impact_distributions) == len(short_trajectory) * 2
+
+
+# --- Interpolation boundary tests ---
+
+
+def test_interpolation_skips_empty_population_points():
+    """Points with zero population should keep miss-only score, not get interpolated."""
+    traj = _make_trajectory(10)
+    scored = {
+        0: _make_point_score(traj[0], 10.0),
+        5: _make_point_score(traj[5], 20.0),
+        9: _make_point_score(traj[9], 30.0),
+    }
+    point_scores = _make_full_point_scores(traj, scored)
+
+    pop = np.zeros(10, dtype=np.float32)
+    pop[0] = 100.0
+    pop[5] = 200.0
+    pop[9] = 150.0
+
+    result = ScoringEngine._interpolate_gaps(traj, point_scores, scored, pop, 0.0)
+
+    for i in [1, 2, 3, 4, 6, 7, 8]:
+        assert result[i].engagement_score == 0.0, (
+            f"Point {i} has zero population but got interpolated score "
+            f"{result[i].engagement_score}"
+        )
+
+    for i in [0, 5, 9]:
+        assert result[i] is scored[i]
+
+
+def test_interpolation_still_fills_populated_gaps():
+    """Points with nonzero population between scored points should still be interpolated."""
+    traj = _make_trajectory(5)
+    scored = {
+        0: _make_point_score(traj[0], 10.0),
+        4: _make_point_score(traj[4], 20.0),
+    }
+    point_scores = _make_full_point_scores(traj, scored)
+
+    pop = np.array([100.0, 80.0, 60.0, 40.0, 100.0], dtype=np.float32)
+
+    result = ScoringEngine._interpolate_gaps(traj, point_scores, scored, pop, 0.0)
+
+    for i in [1, 2, 3]:
+        assert 10.0 < result[i].engagement_score < 20.0, (
+            f"Populated point {i} should be interpolated but got {result[i].engagement_score}"
+        )
+
+
+class TestCityBoundarySharpness:
+    """End-to-end test: scores should not plateau beyond actual population extent."""
+
+    @pytest.fixture
+    def long_trajectory(self):
+        sv = StateVector(
+            lat=49.0, lon=31.0, altitude_m=50.0,
+            heading_deg=180.0, speed_m_s=51.4,
+        )
+        return discretise_trajectory(sv, spacing_m=1000, max_range_m=119_000)
+
+    @pytest.fixture
+    def wide_dem(self):
+        data = np.full((20, 20), 0.0, dtype=np.float32)
+        return DEMIndex.from_array(data, west=30.0, south=47.0, east=32.0, north=50.0)
+
+    @pytest.fixture
+    def city_casualty_engine(self, long_trajectory, config):
+        mid = long_trajectory[60]
+        cells = make_test_population(
+            mid.lat, mid.lon, pop_density=50000.0, radius_cells=1,
+        )
+        pop = PopulationIndex.from_dict(cells)
+        infra = InfrastructureIndex.from_features([], config.casualty.infrastructure)
+        return CasualtyEngine(pop, infra, config.casualty)
+
+    def test_score_drops_outside_city(
+        self, config, long_trajectory, wide_dem, city_casualty_engine,
+    ):
+        """Scores should drop sharply outside the population cluster."""
+        engine = ScoringEngine(config)
+        result = engine.score_trajectory(
+            long_trajectory, wide_dem, city_casualty_engine, (49.0, 31.0),
+            rng=np.random.default_rng(42),
+        )
+
+        all_vals = [ps.engagement_score for ps in result.trajectory_scores]
+        peak_idx = int(np.argmax(all_vals))
+        peak_score = all_vals[peak_idx]
+        assert peak_score > 0
+
+        for offset in [10, 15, 20]:
+            for idx in [peak_idx - offset, peak_idx + offset]:
+                if 0 <= idx < len(all_vals):
+                    assert all_vals[idx] < peak_score * 0.25, (
+                        f"Point {idx} ({offset}km from peak) has score "
+                        f"{all_vals[idx]:.6f}, expected < 25% of peak {peak_score:.6f}"
+                    )
