@@ -21,6 +21,13 @@ Implementation agent: pick the first `[ ]` plan whose dependencies are all `[x]`
 | [x] | F13 | [Batch REST API + Async Job Management](F13-api-batch.md) | F12 |
 | [x] | F14 | [Performance Benchmarks](F14-performance-benchmarks.md) | F12, F13 |
 
+## Bugfixes
+
+| Status | ID | Plan | Dependencies |
+|---|---|---|---|
+| [ ] | B01 | [Performance: Vectorise Population and Infrastructure Queries](bugfixes/B01-performance-population-query.md) | — |
+| [ ] | B02 | [Fix: API Handlers Block the Event Loop](bugfixes/B02-event-loop-blocking.md) | — |
+
 ## 1.1 — Dashboard & Deployment
 
 | Status | ID | Plan | Dependencies |
