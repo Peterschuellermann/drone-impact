@@ -86,10 +86,56 @@ E_i = 0.50 × (0.40 × C_M1(P_i) + 0.35 × C_M2(P_i) + 0.25 × C_M3(P_i))
     + 0.50 × C_terminal
 ```
 
-The **recommended engagement point** is:
+The **recommended engagement point** is selected using the safe intercept constraint (see below).
+
+---
+
+## Safe Intercept Constraint
+
+The scoring engine applies a safety constraint to the recommendation: the recommended engagement point must not require the drone to overfly a high-risk trajectory section.
+
+### Hit-Branch Expected Casualties
+
+For each evaluation point, the **hit-branch expected casualties** isolates the debris risk from the miss-branch constant:
+
 ```
-P* = argmin_{i} E_i
+hit_casualties(P_i) = Σ_{k∈{M1,M2,M3}} p_k × C_k(P_i)
 ```
+
+This value is stored per point as `hit_branch_expected_casualties`.
+
+### High-Risk Threshold
+
+A trajectory point is flagged `high_risk: true` when:
+
+```
+hit_branch_expected_casualties > engagement.high_risk_threshold
+```
+
+The threshold is configurable via `engagement.high_risk_threshold` (default: 0.5 expected casualties). The threshold applies to hit-branch casualties only, not the full engagement score, because the miss-branch term is constant across all points and would bias the threshold.
+
+### Constrained Recommendation
+
+The eligible set for recommendation consists of all points where **no preceding point** (lower index along the trajectory) is high-risk. Once a high-risk point is encountered, all subsequent points are blocked from recommendation, because reaching them requires the drone to overfly the high-risk area.
+
+```
+P*_constrained = argmin_{i ∈ eligible} E_i
+P*_unconstrained = argmin_{i} E_i
+```
+
+If `P*_constrained != P*_unconstrained`, the response includes both:
+- `recommended_engagement` -- the constrained recommendation (safe)
+- `unconstrained_optimum` -- the unconstrained argmin (for operator awareness)
+
+When no eligible points exist (the first trajectory point itself is high-risk), the engine falls back to recommending the first point.
+
+### Risk Zones
+
+The response includes `risk_zones`: a list of contiguous trajectory segments where `hit_branch_expected_casualties > threshold`. Each zone reports `start_index`, `end_index`, `start_distance_m`, `end_distance_m`, and `peak_expected_casualties`.
+
+### Engagement Score Values Unchanged
+
+The constraint is a **filter on the recommendation**, not a change to the engagement score formula. All `engagement_score` values in the response remain unchanged. Operators see the full risk picture and can override the constrained recommendation when they have additional context.
 
 ---
 
@@ -160,3 +206,4 @@ All of the following must be exposed as configurable constants in the implementa
 | `p_mode_break_apart` | 0.25 | P(M3 \| hit) |
 | `n_monte_carlo_samples` | 10,000 | Samples per evaluation point per mode |
 | `evaluation_spacing_m` | 500 | Distance between evaluation points |
+| `high_risk_threshold` | 0.50 | Hit-branch expected casualties above which a point is high-risk |

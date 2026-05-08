@@ -13,6 +13,7 @@ from droneimpact.api.schemas import (
     MetadataSchema,
     ModeBreakdown,
     RecommendedEngagementSchema,
+    RiskZoneSchema,
     SingleDroneRequest,
     SingleDroneResponse,
     TrajectoryPointScore,
@@ -102,6 +103,8 @@ def _build_response(
                 for k, v in ps.breakdown.items()
             },
             miss_branch_expected_casualties=ps.miss_branch_expected_casualties,
+            hit_branch_expected_casualties=ps.hit_branch_expected_casualties,
+            high_risk=ps.high_risk,
         )
         for ps in result.trajectory_scores
     ]
@@ -142,6 +145,31 @@ def _build_response(
             for z in result.engagement_zones
         ]
 
+    risk_zones = [
+        RiskZoneSchema(
+            start_index=rz.start_index,
+            end_index=rz.end_index,
+            start_distance_m=rz.start_distance_m,
+            end_distance_m=rz.end_distance_m,
+            peak_expected_casualties=rz.peak_expected_casualties,
+        )
+        for rz in result.risk_zones
+    ]
+
+    unconstrained_optimum = None
+    if result.unconstrained_optimum is not None:
+        uo = result.unconstrained_optimum
+        unconstrained_optimum = RecommendedEngagementSchema(
+            point_index=uo.point_index,
+            lat=uo.lat,
+            lon=uo.lon,
+            altitude_m=uo.altitude_m,
+            distance_from_current_m=uo.distance_from_current_m,
+            expected_casualties=uo.expected_casualties,
+            engagement_score=uo.engagement_score,
+            reasoning=uo.reasoning,
+        )
+
     return SingleDroneResponse(
         drone_id=req.drone_id,
         computed_at_utc=datetime.now(timezone.utc).isoformat(),
@@ -158,4 +186,6 @@ def _build_response(
             n_points_dense=result.metadata.get("n_points_dense"),
         ),
         engagement_zones=zones,
+        risk_zones=risk_zones,
+        unconstrained_optimum=unconstrained_optimum,
     )

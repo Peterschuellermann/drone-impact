@@ -7,7 +7,15 @@ def explain(
     best: PointScore,
     all_scores: list[PointScore],
     zones: list[EngagementZone] | None = None,
+    *,
+    is_constrained: bool = False,
 ) -> str:
+    if is_constrained:
+        return (
+            "Engaging before high-risk zone — lower-risk points exist "
+            "further along trajectory but require overflying high-density area."
+        )
+
     scores = [ps.engagement_score for ps in all_scores]
     sorted_scores = sorted(scores)
     second_best = sorted_scores[1] if len(sorted_scores) > 1 else None

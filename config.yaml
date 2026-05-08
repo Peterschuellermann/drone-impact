@@ -33,6 +33,7 @@ physics:
 
 engagement:
   p_kill: 0.50
+  high_risk_threshold: 0.5
   mode_weights:
     propulsion_loss: 0.40
     loss_of_control: 0.35

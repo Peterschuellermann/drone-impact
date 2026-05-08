@@ -56,6 +56,7 @@ class ModeWeights(BaseModel):
 
 class EngagementConfig(BaseModel):
     p_kill: float
+    high_risk_threshold: float = 0.5
     mode_weights: ModeWeights
 
 

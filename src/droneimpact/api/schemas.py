@@ -35,6 +35,8 @@ class TrajectoryPointScore(BaseModel):
     engagement_score: float
     breakdown: dict[str, ModeBreakdown]
     miss_branch_expected_casualties: float
+    hit_branch_expected_casualties: float = 0.0
+    high_risk: bool = False
 
 
 class ImpactEllipseSchema(BaseModel):
@@ -88,6 +90,14 @@ class MetadataSchema(BaseModel):
     n_points_dense: int | None = None
 
 
+class RiskZoneSchema(BaseModel):
+    start_index: int
+    end_index: int
+    start_distance_m: float
+    end_distance_m: float
+    peak_expected_casualties: float
+
+
 class SingleDroneResponse(BaseModel):
     drone_id: str | None
     computed_at_utc: str
@@ -96,3 +106,5 @@ class SingleDroneResponse(BaseModel):
     impact_distributions: list[ImpactDistributionSchema]
     metadata: MetadataSchema
     engagement_zones: list[EngagementZoneSchema] | None = None
+    risk_zones: list[RiskZoneSchema] = []
+    unconstrained_optimum: RecommendedEngagementSchema | None = None

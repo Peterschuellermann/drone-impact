@@ -21,6 +21,7 @@ from droneimpact.scoring.types import (
     ModeScore,
     PointScore,
     RecommendedEngagement,
+    RiskZone,
     TrajectoryResult,
 )
 from droneimpact.scoring.zones import classify_zones
@@ -70,7 +71,7 @@ class ScoringEngine:
         self._config = config
         self._prescan_radius = _max_frag_radius(config)
 
-    # --- Core per-point scoring (unchanged) ---
+    # --- Core per-point scoring ---
 
     def _score_point(
         self,
@@ -119,6 +120,7 @@ class ScoringEngine:
                 "break_apart": ModeScore(w.break_apart, cas_m3, compute_cep(enu_m3)),
             },
             miss_branch_expected_casualties=miss_casualties,
+            hit_branch_expected_casualties=hit_casualties,
         )
 
         dists: list[ImpactDistribution] = []
@@ -209,6 +211,136 @@ class ScoringEngine:
 
         return dense_points
 
+    # --- Risk zone detection (F20) ---
+
+    def _find_risk_zones(
+        self, point_scores: list[PointScore], threshold: float,
+    ) -> list[RiskZone]:
+        zones: list[RiskZone] = []
+        in_zone = False
+        start_idx = 0
+        peak = 0.0
+
+        for ps in point_scores:
+            is_high = ps.hit_branch_expected_casualties > threshold
+            if is_high and not in_zone:
+                in_zone = True
+                start_idx = ps.point_index
+                peak = ps.hit_branch_expected_casualties
+            elif is_high and in_zone:
+                peak = max(peak, ps.hit_branch_expected_casualties)
+            elif not is_high and in_zone:
+                end_idx = ps.point_index - 1
+                start_dist = next(
+                    p.distance_from_start_m for p in point_scores if p.point_index == start_idx
+                )
+                end_dist = next(
+                    p.distance_from_start_m for p in point_scores if p.point_index == end_idx
+                )
+                zones.append(RiskZone(
+                    start_index=start_idx,
+                    end_index=end_idx,
+                    start_distance_m=start_dist,
+                    end_distance_m=end_dist,
+                    peak_expected_casualties=peak,
+                ))
+                in_zone = False
+
+        if in_zone:
+            last = point_scores[-1]
+            start_dist = next(
+                p.distance_from_start_m for p in point_scores if p.point_index == start_idx
+            )
+            zones.append(RiskZone(
+                start_index=start_idx,
+                end_index=last.point_index,
+                start_distance_m=start_dist,
+                end_distance_m=last.distance_from_start_m,
+                peak_expected_casualties=peak,
+            ))
+
+        return zones
+
+    # --- Safe intercept constraint (F20) ---
+
+    def _apply_safe_intercept_constraint(
+        self,
+        point_scores: list[PointScore],
+        impact_dists: list[ImpactDistribution],
+        t_start: float,
+        n_samples: int,
+        n_pts: int,
+        pop_at_points: np.ndarray | None = None,
+    ) -> TrajectoryResult:
+        threshold = self._config.engagement.high_risk_threshold
+        scoring_cfg = self._config.scoring
+
+        for ps in point_scores:
+            ps.high_risk = ps.hit_branch_expected_casualties > threshold
+
+        risk_zones = self._find_risk_zones(point_scores, threshold)
+
+        eligible: list[PointScore] = []
+        blocked = False
+        for ps in point_scores:
+            if ps.high_risk:
+                blocked = True
+            if not blocked:
+                eligible.append(ps)
+
+        if not eligible:
+            eligible = [point_scores[0]]
+
+        best_constrained = min(eligible, key=lambda ps: ps.engagement_score)
+        best_unconstrained = min(point_scores, key=lambda ps: ps.engagement_score)
+        is_constrained = best_constrained.point_index != best_unconstrained.point_index
+
+        zones = classify_zones(point_scores, scoring_cfg)
+        reasoning = explain(best_constrained, point_scores, zones, is_constrained=is_constrained)
+
+        recommended = RecommendedEngagement(
+            point_index=best_constrained.point_index,
+            lat=best_constrained.lat,
+            lon=best_constrained.lon,
+            altitude_m=best_constrained.altitude_m,
+            distance_from_current_m=best_constrained.distance_from_start_m,
+            expected_casualties=best_constrained.expected_casualties,
+            engagement_score=best_constrained.engagement_score,
+            reasoning=reasoning,
+        )
+
+        unconstrained_optimum = None
+        if is_constrained:
+            unconstrained_reasoning = explain(best_unconstrained, point_scores, zones)
+            unconstrained_optimum = RecommendedEngagement(
+                point_index=best_unconstrained.point_index,
+                lat=best_unconstrained.lat,
+                lon=best_unconstrained.lon,
+                altitude_m=best_unconstrained.altitude_m,
+                distance_from_current_m=best_unconstrained.distance_from_start_m,
+                expected_casualties=best_unconstrained.expected_casualties,
+                engagement_score=best_unconstrained.engagement_score,
+                reasoning=unconstrained_reasoning,
+            )
+
+        elapsed_ms = (time.perf_counter() - t_start) * 1000
+
+        metadata: dict = {
+            "n_trajectory_points": n_pts,
+            "n_monte_carlo_samples": n_samples,
+            "simulation_time_ms": elapsed_ms,
+        }
+
+        return TrajectoryResult(
+            trajectory_scores=point_scores,
+            recommended_engagement=recommended,
+            impact_distributions=impact_dists,
+            metadata=metadata,
+            engagement_zones=zones,
+            risk_zones=risk_zones,
+            unconstrained_optimum=unconstrained_optimum,
+        )
+
     # --- Main entry point ---
 
     def score_trajectory(
@@ -242,30 +374,26 @@ class ScoringEngine:
         n_pts = len(trajectory)
 
         if n_pts <= SHORT_TRAJECTORY_THRESHOLD:
-            result = self._score_all_points(
+            return self._score_all_points(
                 trajectory, dem, casualty_engine, miss_casualties, n_samples, rng,
                 t_start, pop_at_points, compute_ellipses=True,
             )
-            return result
 
         # --- Adaptive resolution for long trajectories ---
 
         empty_thresh = scoring_cfg.population_empty_threshold
         high_thresh = scoring_cfg.population_high_risk_threshold
 
-        # 0=empty, 1=low, 2=high
         classifications = np.zeros(n_pts, dtype=np.int8)
         classifications[pop_at_points > empty_thresh] = 1
         classifications[pop_at_points >= high_thresh] = 2
 
         high_risk_mask = classifications == 2
 
-        # Build dense interpolated points in high-risk stretches
         dense_points = self._build_dense_points(
             trajectory, high_risk_mask, scoring_cfg.dense_spacing_m,
         )
 
-        # Score all non-empty original points + dense points
         scored_originals: dict[int, PointScore] = {}
         impact_dists: list[ImpactDistribution] = []
         n_points_skipped = 0
@@ -285,7 +413,6 @@ class ScoringEngine:
             scored_originals[i] = ps
             impact_dists.extend(dists)
 
-        # Score dense interpolated points (find best within each high-risk stretch)
         best_dense_per_original: dict[int, float] = {}
         for dpt in dense_points:
             agl = dem.msl_to_agl(dpt.lat, dpt.lon, dpt.altitude_m)
@@ -298,8 +425,6 @@ class ScoringEngine:
                 if current_best is None or ps.engagement_score < current_best:
                     best_dense_per_original[orig_idx] = ps.engagement_score
 
-        # Update original point scores: if a dense point nearby scored better,
-        # use the better score for recommendation purposes
         for orig_idx, dense_score in best_dense_per_original.items():
             if orig_idx in scored_originals:
                 orig = scored_originals[orig_idx]
@@ -315,9 +440,9 @@ class ScoringEngine:
                         breakdown=orig.breakdown,
                         miss_branch_expected_casualties=orig.miss_branch_expected_casualties,
                         population_within_frag_radius=orig.population_within_frag_radius,
+                        hit_branch_expected_casualties=orig.hit_branch_expected_casualties,
                     )
 
-        # Build complete trajectory scores list
         miss_only_score = (1.0 - self._config.engagement.p_kill) * miss_casualties
         point_scores: list[PointScore] = []
         for i, pt in enumerate(trajectory):
@@ -337,46 +462,13 @@ class ScoringEngine:
                     population_within_frag_radius=float(pop_at_points[i]),
                 ))
 
-        # Interpolate between scored neighbors for unsimulated low-pop gaps
         point_scores = self._interpolate_gaps(trajectory, point_scores, scored_originals)
 
-        # Recommendation from scored points only
-        if scored_originals:
-            best = min(scored_originals.values(), key=lambda ps: ps.engagement_score)
-        else:
-            best = point_scores[0]
-
-        zones = classify_zones(point_scores, scoring_cfg)
-        reasoning = explain(best, point_scores, zones)
-
-        recommended = RecommendedEngagement(
-            point_index=best.point_index,
-            lat=best.lat,
-            lon=best.lon,
-            altitude_m=best.altitude_m,
-            distance_from_current_m=best.distance_from_start_m,
-            expected_casualties=best.expected_casualties,
-            engagement_score=best.engagement_score,
-            reasoning=reasoning,
+        return self._apply_safe_intercept_constraint(
+            point_scores, impact_dists, t_start, n_samples, n_pts, pop_at_points,
         )
 
-        elapsed_ms = (time.perf_counter() - t_start) * 1000
-
-        return TrajectoryResult(
-            trajectory_scores=point_scores,
-            recommended_engagement=recommended,
-            impact_distributions=impact_dists,
-            metadata={
-                "n_trajectory_points": n_pts,
-                "n_monte_carlo_samples": n_samples,
-                "simulation_time_ms": elapsed_ms,
-                "n_points_skipped": n_points_skipped,
-                "n_points_dense": n_points_dense,
-            },
-            engagement_zones=zones,
-        )
-
-    # --- Short trajectory path (preserves existing behavior) ---
+    # --- Short trajectory path ---
 
     def _score_all_points(
         self,
@@ -403,36 +495,8 @@ class ScoringEngine:
             point_scores.append(ps)
             impact_dists.extend(dists)
 
-        best_idx = int(np.argmin([ps.engagement_score for ps in point_scores]))
-        best = point_scores[best_idx]
-
-        scoring_cfg = self._config.scoring
-        zones = classify_zones(point_scores, scoring_cfg)
-        reasoning = explain(best, point_scores, zones)
-
-        recommended = RecommendedEngagement(
-            point_index=best.point_index,
-            lat=best.lat,
-            lon=best.lon,
-            altitude_m=best.altitude_m,
-            distance_from_current_m=best.distance_from_start_m,
-            expected_casualties=best.expected_casualties,
-            engagement_score=best.engagement_score,
-            reasoning=reasoning,
-        )
-
-        elapsed_ms = (time.perf_counter() - t_start) * 1000
-
-        return TrajectoryResult(
-            trajectory_scores=point_scores,
-            recommended_engagement=recommended,
-            impact_distributions=impact_dists,
-            metadata={
-                "n_trajectory_points": len(trajectory),
-                "n_monte_carlo_samples": n_samples,
-                "simulation_time_ms": elapsed_ms,
-            },
-            engagement_zones=zones,
+        return self._apply_safe_intercept_constraint(
+            point_scores, impact_dists, t_start, n_samples, len(trajectory), pop_at_points,
         )
 
     @staticmethod
