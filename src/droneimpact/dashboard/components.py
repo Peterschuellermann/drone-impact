@@ -1,0 +1,306 @@
+from __future__ import annotations
+
+import math
+
+import folium
+import plotly.graph_objects as go
+
+
+MODE_COLOURS = {
+    "propulsion_loss": "#3b82f6",
+    "loss_of_control": "#f59e0b",
+    "break_apart": "#ef4444",
+}
+
+MODE_LABELS = {
+    "propulsion_loss": "Propulsion Loss (M1)",
+    "loss_of_control": "Loss of Control (M2)",
+    "break_apart": "Break Apart (M3)",
+}
+
+
+def _score_colour(score: float, max_score: float) -> str:
+    if max_score <= 0:
+        return "#22c55e"
+    t = min(score / max_score, 1.0)
+    if t < 0.5:
+        r = int(34 + (234 - 34) * (t / 0.5))
+        g = int(197 + (179 - 197) * (t / 0.5))
+        b = int(94 + (8 - 94) * (t / 0.5))
+    else:
+        r = int(234 + (239 - 234) * ((t - 0.5) / 0.5))
+        g = int(179 + (68 - 179) * ((t - 0.5) / 0.5))
+        b = int(8 + (68 - 8) * ((t - 0.5) / 0.5))
+    return f"#{r:02x}{g:02x}{b:02x}"
+
+
+def make_trajectory_map(result: dict) -> folium.Map:
+    scores = result["trajectory_scores"]
+    rec = result["recommended_engagement"]
+
+    mid_idx = len(scores) // 2
+    center_lat = scores[mid_idx]["lat"] if scores else rec["lat"]
+    center_lon = scores[mid_idx]["lon"] if scores else rec["lon"]
+
+    m = folium.Map(location=[center_lat, center_lon], zoom_start=8, tiles="OpenStreetMap")
+
+    trajectory_group = folium.FeatureGroup(name="Trajectory", show=True)
+
+    coords = [[pt["lat"], pt["lon"]] for pt in scores]
+    if coords:
+        folium.PolyLine(coords, color="#3b82f6", weight=3, opacity=0.8).add_to(trajectory_group)
+
+    if scores:
+        folium.CircleMarker(
+            [scores[0]["lat"], scores[0]["lon"]],
+            radius=8, color="#22c55e", fill=True, fill_opacity=1.0,
+            tooltip="Start",
+        ).add_to(trajectory_group)
+        folium.CircleMarker(
+            [scores[-1]["lat"], scores[-1]["lon"]],
+            radius=8, color="#ef4444", fill=True, fill_opacity=1.0,
+            tooltip="End",
+        ).add_to(trajectory_group)
+
+    max_cas = max((pt["expected_casualties"] for pt in scores), default=1.0) or 1.0
+    eval_group = folium.FeatureGroup(name="Evaluation Points", show=True)
+    for pt in scores:
+        r = 3 + 7 * (pt["expected_casualties"] / max_cas)
+        folium.CircleMarker(
+            [pt["lat"], pt["lon"]],
+            radius=r,
+            color="#6366f1",
+            fill=True,
+            fill_opacity=0.5,
+            tooltip=(
+                f"Point {pt['point_index']} | "
+                f"Dist: {pt['distance_from_current_m']:.0f} m | "
+                f"Casualties: {pt['expected_casualties']:.3f} | "
+                f"Score: {pt['engagement_score']:.3f}"
+            ),
+        ).add_to(eval_group)
+
+    folium.Marker(
+        [rec["lat"], rec["lon"]],
+        icon=folium.Icon(color="red", icon="star", prefix="fa"),
+        tooltip=(
+            f"RECOMMENDED | "
+            f"Casualties: {rec['expected_casualties']:.3f} | "
+            f"Score: {rec['engagement_score']:.3f}"
+        ),
+    ).add_to(trajectory_group)
+
+    impact_group = folium.FeatureGroup(name="Impact Ellipses", show=False)
+    for dist in result.get("impact_distributions", []):
+        if dist["point_index"] != rec["point_index"]:
+            continue
+        ellipse = dist["impact_ellipse"]
+        mode = dist["mode"]
+        colour = MODE_COLOURS.get(mode, "#888888")
+        folium.Circle(
+            [ellipse["centre_lat"], ellipse["centre_lon"]],
+            radius=ellipse["semi_major_m"],
+            color=colour,
+            fill=True,
+            fill_opacity=0.15,
+            tooltip=f"{MODE_LABELS.get(mode, mode)} CEP",
+        ).add_to(impact_group)
+
+    trajectory_group.add_to(m)
+    eval_group.add_to(m)
+    impact_group.add_to(m)
+    folium.LayerControl().add_to(m)
+
+    if coords:
+        m.fit_bounds(
+            [[min(p[0] for p in coords) - 0.02, min(p[1] for p in coords) - 0.02],
+             [max(p[0] for p in coords) + 0.02, max(p[1] for p in coords) + 0.02]]
+        )
+
+    return m
+
+
+def make_impact_scatter(result: dict) -> go.Figure:
+    rec = result["recommended_engagement"]
+    rec_idx = rec["point_index"]
+
+    fig = go.Figure()
+
+    distributions = [
+        d for d in result.get("impact_distributions", [])
+        if d["point_index"] == rec_idx
+    ]
+
+    for dist in distributions:
+        mode = dist["mode"]
+        ellipse = dist["impact_ellipse"]
+        colour = MODE_COLOURS.get(mode, "#888888")
+        label = MODE_LABELS.get(mode, mode)
+
+        n_pts = 60
+        angles = [2 * math.pi * i / n_pts for i in range(n_pts + 1)]
+        orient_rad = math.radians(ellipse["orientation_deg"])
+        lat_per_m = 1 / 111320
+        lon_per_m = 1 / (111320 * math.cos(math.radians(ellipse["centre_lat"])))
+
+        lats, lons = [], []
+        for a in angles:
+            x = ellipse["semi_major_m"] * math.cos(a)
+            y = ellipse["semi_minor_m"] * math.sin(a)
+            rx = x * math.cos(orient_rad) - y * math.sin(orient_rad)
+            ry = x * math.sin(orient_rad) + y * math.cos(orient_rad)
+            lats.append(ellipse["centre_lat"] + ry * lat_per_m)
+            lons.append(ellipse["centre_lon"] + rx * lon_per_m)
+
+        r_c = int(colour[1:3], 16)
+        g_c = int(colour[3:5], 16)
+        b_c = int(colour[5:7], 16)
+        fill_rgba = f"rgba({r_c},{g_c},{b_c},0.2)"
+
+        fig.add_trace(go.Scattergl(
+            x=lons, y=lats,
+            mode="lines",
+            fill="toself",
+            fillcolor=fill_rgba,
+            line=dict(color=colour, width=2),
+            name=label,
+            hoverinfo="name",
+        ))
+
+        fig.add_trace(go.Scattergl(
+            x=[ellipse["centre_lon"]], y=[ellipse["centre_lat"]],
+            mode="markers",
+            marker=dict(color=colour, size=8, symbol="x"),
+            name=f"{label} centre",
+            showlegend=False,
+        ))
+
+    fig.add_trace(go.Scattergl(
+        x=[rec["lon"]], y=[rec["lat"]],
+        mode="markers",
+        marker=dict(color="red", size=14, symbol="star"),
+        name="Recommended",
+    ))
+
+    fig.update_layout(
+        title="Impact Distribution at Recommended Point",
+        xaxis_title="Longitude",
+        yaxis_title="Latitude",
+        yaxis=dict(scaleanchor="x", scaleratio=1),
+        height=500,
+        margin=dict(t=40, b=40),
+        legend=dict(orientation="h", yanchor="bottom", y=1.02),
+    )
+
+    return fig
+
+
+def make_risk_profile(result: dict) -> go.Figure:
+    scores = result["trajectory_scores"]
+    rec = result["recommended_engagement"]
+
+    distances = [pt["distance_from_current_m"] / 1000 for pt in scores]
+    casualties = [pt["expected_casualties"] for pt in scores]
+    engagement = [pt["engagement_score"] for pt in scores]
+
+    fig = go.Figure()
+
+    fig.add_trace(go.Scatter(
+        x=distances, y=casualties,
+        mode="lines+markers",
+        name="Expected Casualties",
+        line=dict(color="#ef4444", width=2),
+        marker=dict(size=4),
+        hovertemplate="Distance: %{x:.1f} km<br>Casualties: %{y:.4f}<extra></extra>",
+    ))
+
+    fig.add_trace(go.Scatter(
+        x=distances, y=engagement,
+        mode="lines+markers",
+        name="Engagement Score",
+        line=dict(color="#3b82f6", width=2),
+        marker=dict(size=4),
+        yaxis="y2",
+        hovertemplate="Distance: %{x:.1f} km<br>Score: %{y:.4f}<extra></extra>",
+    ))
+
+    rec_dist = rec["distance_from_current_m"] / 1000
+    fig.add_vline(
+        x=rec_dist,
+        line_dash="dash", line_color="#22c55e", line_width=2,
+        annotation_text="Recommended",
+        annotation_position="top",
+    )
+
+    fig.update_layout(
+        title="Risk Profile Along Trajectory",
+        xaxis_title="Distance (km)",
+        yaxis=dict(title=dict(text="Expected Casualties", font=dict(color="#ef4444")), side="left"),
+        yaxis2=dict(
+            title=dict(text="Engagement Score", font=dict(color="#3b82f6")),
+            side="right", overlaying="y",
+        ),
+        height=400,
+        margin=dict(t=40, b=40),
+        legend=dict(orientation="h", yanchor="bottom", y=1.02),
+        hovermode="x unified",
+    )
+
+    return fig
+
+
+def make_stats_panel(result: dict) -> str:
+    rec = result["recommended_engagement"]
+    scores = result["trajectory_scores"]
+    meta = result["metadata"]
+
+    rec_score = None
+    for pt in scores:
+        if pt["point_index"] == rec["point_index"]:
+            rec_score = pt
+            break
+
+    lines = [
+        "### Recommended Engagement",
+        "",
+        f"| Metric | Value |",
+        f"|---|---|",
+        f"| Distance | {rec['distance_from_current_m'] / 1000:.1f} km |",
+        f"| Position | {rec['lat']:.5f}, {rec['lon']:.5f} |",
+        f"| Altitude | {rec['altitude_m']:.0f} m |",
+        f"| Expected Casualties | {rec['expected_casualties']:.4f} |",
+        f"| Engagement Score | {rec['engagement_score']:.4f} |",
+        "",
+        f"**Reasoning:** {rec['reasoning']}",
+    ]
+
+    if rec_score:
+        lines.extend([
+            "",
+            "### Mode Breakdown",
+            "",
+            "| Mode | Weight | Expected Casualties | CEP (m) |",
+            "|---|---|---|---|",
+        ])
+        for mode_key, mode_data in rec_score["breakdown"].items():
+            label = MODE_LABELS.get(mode_key, mode_key)
+            lines.append(
+                f"| {label} | {mode_data['weight']:.0%} | "
+                f"{mode_data['expected_casualties']:.4f} | "
+                f"{mode_data['cep_m']:.0f} |"
+            )
+        lines.extend([
+            "",
+            f"**Miss branch casualties:** {rec_score['miss_branch_expected_casualties']:.4f}",
+        ])
+
+    lines.extend([
+        "",
+        "### Simulation Info",
+        "",
+        f"- **Trajectory points:** {meta['n_trajectory_points']}",
+        f"- **Monte Carlo samples:** {meta['n_monte_carlo_samples']}",
+        f"- **Simulation time:** {meta['simulation_time_ms']:.0f} ms",
+    ])
+
+    return "\n".join(lines)

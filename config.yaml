@@ -74,3 +74,9 @@ data:
   population_path: "./data/kontur_ukraine.gpkg"
   dem_path: "./data/ukraine_dem.tif"
   infrastructure_path: "./data/ukraine_infra.geojson"
+
+dashboard:
+  api_endpoint: "http://localhost:8000"
+  default_max_range_m: 250000
+  default_evaluation_spacing_m: 500
+  cache_ttl_sec: 300
