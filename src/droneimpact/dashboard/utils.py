@@ -232,3 +232,42 @@ def load_scenarios(config_path: str | Path = "config.yaml") -> list[dict]:
         })
 
     return scenarios
+
+
+def load_multi_drone_scenarios(config_path: str | Path = "config.yaml") -> list[dict]:
+    path = Path(config_path)
+    if not path.exists():
+        return []
+
+    try:
+        with open(path) as f:
+            raw = yaml.safe_load(f)
+    except Exception:
+        logger.warning("Failed to parse config file %s", path, exc_info=True)
+        return []
+
+    scenarios_raw = raw.get("multi_drone_scenarios", [])
+    if not scenarios_raw:
+        return []
+
+    scenarios = []
+    for s in scenarios_raw:
+        drones = []
+        for d in s.get("drones", []):
+            drones.append({
+                "drone_id": d["drone_id"],
+                "trajectory": {
+                    "lat": float(d["lat"]),
+                    "lon": float(d["lon"]),
+                    "altitude_m": float(d["altitude_m"]),
+                    "heading_deg": float(d["heading_deg"]),
+                    "speed_m_s": float(d["speed_m_s"]),
+                },
+            })
+        scenarios.append({
+            "name": s["name"],
+            "description": s.get("description", ""),
+            "drones": drones,
+        })
+
+    return scenarios

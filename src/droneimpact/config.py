@@ -181,6 +181,21 @@ class ScenarioConfig(BaseModel):
     max_range_m: int = 250_000
 
 
+class MultiDroneDef(BaseModel):
+    drone_id: str
+    lat: float
+    lon: float
+    altitude_m: float
+    heading_deg: float
+    speed_m_s: float
+
+
+class MultiDroneScenario(BaseModel):
+    name: str
+    description: str
+    drones: list[MultiDroneDef]
+
+
 class ParallelismConfig(BaseModel):
     point_workers: int = 0
     batch_workers: int = 0
@@ -209,6 +224,7 @@ class AppConfig(BaseModel):
     data: DataPaths
     scoring: ScoringConfig = ScoringConfig()
     scenarios: list[ScenarioConfig] = []
+    multi_drone_scenarios: list[MultiDroneScenario] = []
     parallelism: ParallelismConfig = ParallelismConfig()
     cache: CacheConfig = CacheConfig()
 
