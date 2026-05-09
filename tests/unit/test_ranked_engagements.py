@@ -40,7 +40,6 @@ def _make_point_score(
 
 def _make_config(high_risk_threshold: float = 0.5) -> AppConfig:
     return AppConfig.model_validate({
-        "version": "1.0",
         "physics": {
             "n_monte_carlo_samples": 100,
             "evaluation_spacing_m": 500,

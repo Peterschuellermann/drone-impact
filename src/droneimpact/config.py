@@ -163,7 +163,8 @@ class CacheConfig(BaseModel):
 
 
 class AppConfig(BaseModel):
-    version: str
+    model_config = {"extra": "ignore"}
+
     physics: PhysicsConfig
     engagement: EngagementConfig
     casualty: CasualtyConfig

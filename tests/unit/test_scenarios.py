@@ -125,6 +125,6 @@ def test_load_scenarios_missing_file():
 def test_load_scenarios_no_scenarios_key(tmp_path):
     """Returns empty list when config has no scenarios key."""
     cfg_file = tmp_path / "no_scenarios.yaml"
-    cfg_file.write_text("version: '1.0'\n")
+    cfg_file.write_text("{}\n")
     result = load_scenarios(str(cfg_file))
     assert result == []

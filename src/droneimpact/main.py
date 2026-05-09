@@ -5,6 +5,7 @@ import multiprocessing as mp
 import time
 from concurrent.futures import ProcessPoolExecutor
 from contextlib import asynccontextmanager
+from importlib.metadata import version as pkg_version
 from pathlib import Path
 
 from fastapi import FastAPI
@@ -116,7 +117,7 @@ async def lifespan(app: FastAPI):
 
 
 def create_app() -> FastAPI:
-    app = FastAPI(title="DroneImpact", version="1.0.0", lifespan=lifespan)
+    app = FastAPI(title="DroneImpact", version=pkg_version("droneimpact"), lifespan=lifespan)
     app.include_router(health_router)
     app.include_router(analyze_router)
     app.include_router(batch_router)

@@ -7,9 +7,6 @@ def test_load_config_returns_app_config(config):
     assert isinstance(config, AppConfig)
 
 
-def test_config_version(config):
-    assert config.version == "1.0"
-
 
 def test_monte_carlo_samples():
     # Load directly to check the config.yaml default, not the test-overridden fixture value.
@@ -46,7 +43,7 @@ def test_shahed_params(config):
 
 def test_missing_required_field_raises(tmp_path):
     bad_yaml = tmp_path / "bad.yaml"
-    bad_yaml.write_text("version: '1.0'\nphysics: {}\n")
+    bad_yaml.write_text("physics: {}\n")
     with pytest.raises(Exception):
         load_config(bad_yaml)
 
