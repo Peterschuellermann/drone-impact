@@ -26,6 +26,22 @@ class DEMIndex:
             self._cols = dataset.width
             self._nodata = dataset.nodata
 
+    def __getstate__(self):
+        state = self.__dict__.copy()
+        if self._dataset is not None:
+            state["_dataset_path"] = self._dataset.name
+            state["_dataset"] = None
+        else:
+            state["_dataset_path"] = None
+        return state
+
+    def __setstate__(self, state):
+        path = state.pop("_dataset_path")
+        self.__dict__.update(state)
+        if path is not None:
+            self._dataset = rasterio.open(path)
+            self._nodata = self._dataset.nodata
+
     @classmethod
     def load_from_file(cls, path: str | Path) -> "DEMIndex":
         with rasterio.open(path) as dataset:

@@ -51,7 +51,9 @@ def _enu_to_wgs84_fast(enu: np.ndarray, lat: float, lon: float) -> np.ndarray:
     cos_lat = np.cos(np.radians(lat))
     out_lat = lat + enu[:, 1] / 111_000.0
     out_lon = lon + enu[:, 0] / (111_000.0 * cos_lat)
-    return np.column_stack([out_lat, out_lon])
+    wgs = np.column_stack([out_lat, out_lon])
+    valid = np.isfinite(wgs).all(axis=1) & (np.abs(wgs[:, 0]) <= 90) & (np.abs(wgs[:, 1]) <= 180)
+    return wgs[valid]
 
 
 def _max_frag_radius(config: AppConfig) -> float:
