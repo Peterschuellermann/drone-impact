@@ -12,22 +12,33 @@ All remaining tasks and feature plans are tracked as GitHub issues at https://gi
 
 Multiple agents and people work in this repository simultaneously. Follow these rules to avoid conflicts:
 
-### Git Pull — Stay Up to Date
+### Gitflow Workflow
 
-- **Always `git pull origin main` before starting any work** — at the beginning of a session, before creating a branch, and before merging.
+This repository uses [Gitflow](https://www.atlassian.com/git/tutorials/comparing-workflows/gitflow-workflow). Two long-lived branches:
+
+- **`main`** — production-ready code. Every merge is tagged with a semver version. No direct commits.
+- **`develop`** — integration branch for the next release. All feature work merges here.
+
+Branch types and flow:
+
+| Type | Naming | Branches from | Merges into |
+|---|---|---|---|
+| Feature | `feature/<name>` | `develop` | `develop` |
+| Release | `release/<version>` | `develop` | `main` (tagged) AND `develop` |
+| Hotfix | `hotfix/<name>` | `main` | `main` (tagged) AND `develop` |
+
+Rules:
+- **Never commit directly to `main` or `develop`.** All work happens on short-lived branches.
+- **Always use `--no-ff` merges** to preserve branch history.
+- **Tag every merge into `main`** with the release version (e.g., `1.2.0`).
+- **Pull before branching:** `git pull origin develop` (or `main` for hotfixes).
 - If you've been working for a while, pull again before merging to catch changes others have pushed.
-
-### Branching — Never Commit Directly to Main
-
-- **All work happens on branches**, never directly on `main`. This includes docs, spec changes, and fixes — not just features.
-- Branch naming: `feature/<plan-id>-<short-name>`, `fix/<description>`, or `docs/<description>`.
-- Merge to main via squash merge, then push.
 
 ### Git Worktrees
 
 - Use `git worktree` so multiple branches can be worked on simultaneously without conflicts.
-- Create a worktree for each branch: `git worktree add ../droneimpact-<plan-id> -b feature/<plan-id>-<short-name> main`
-- After merging to main, remove the worktree: `git worktree remove ../droneimpact-<plan-id>`
+- Create a worktree for each branch: `git worktree add ../droneimpact-<plan-id> -b feature/<plan-id>-<short-name> develop`
+- After merging to develop, remove the worktree: `git worktree remove ../droneimpact-<plan-id>`
 - Never run `git checkout` in the main working directory — use worktrees instead.
 - When using Claude Code's Agent tool, prefer `isolation: "worktree"` for implementation tasks.
 
@@ -35,17 +46,37 @@ Multiple agents and people work in this repository simultaneously. Follow these 
 
 ## Feature Development Workflow
 
-1. **Pull latest:** `git pull origin main`
+1. **Pull latest:** `git pull origin develop`
 2. **Pick an issue:** Check GitHub issues for the next available task.
-3. **Worktree:** `git worktree add ../droneimpact-<id> -b feature/<id>-<short-name> main`
+3. **Worktree:** `git worktree add ../droneimpact-<id> -b feature/<id>-<short-name> develop`
 4. **Implement:** Work in the worktree. Make atomic commits as you go.
 5. **Test:** Write unit and integration tests alongside or before code. All tests must pass before moving to the next step.
 6. **Verify:** Run `pytest` — zero failures required before merging.
 7. **Update spec:** If implementation differs from spec, update the relevant `/spec/` file.
-8. **Pull again:** `git pull origin main` — catch any changes pushed while you were working.
-9. **Merge:** From the main working directory: `git merge --squash feature/<id>-<short-name>` then commit with message `feat(<id>): <title>`.
-10. **Push:** `git push origin main` — push immediately after the squash merge.
+8. **Pull again:** `git pull origin develop` — catch any changes pushed while you were working.
+9. **Merge:** From the main working directory: `git merge --no-ff feature/<id>-<short-name>` into `develop`.
+10. **Push:** `git push origin develop` — push immediately after merge.
 11. **Cleanup:** `git worktree remove ../droneimpact-<id>` and `git branch -d feature/<id>-<short-name>`.
+
+## Release Workflow
+
+1. **Branch:** `git checkout -b release/<version> develop`
+2. **Stabilise:** Only bug fixes, docs, and release prep. No new features.
+3. **Merge to main:** `git checkout main && git merge --no-ff release/<version>`
+4. **Tag:** `git tag <version>`
+5. **Merge back to develop:** `git checkout develop && git merge --no-ff release/<version>`
+6. **Push:** `git push origin main develop --tags`
+7. **Cleanup:** `git branch -d release/<version>`
+
+## Hotfix Workflow
+
+1. **Branch:** `git checkout -b hotfix/<name> main`
+2. **Fix and test.**
+3. **Merge to main:** `git checkout main && git merge --no-ff hotfix/<name>`
+4. **Tag:** `git tag <version>`
+5. **Merge to develop:** `git checkout develop && git merge --no-ff hotfix/<name>`
+6. **Push:** `git push origin main develop --tags`
+7. **Cleanup:** `git branch -d hotfix/<name>`
 
 ---
 
