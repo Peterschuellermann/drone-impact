@@ -113,7 +113,8 @@ def _render_single_drone():
             "Trajectory Map", "Impact Distribution", "Risk Profile", "Statistics",
         ])
 
-        with tab_map:
+        @st.fragment
+        def _map_fragment():
             scores = result["trajectory_scores"]
             rec_idx = result["recommended_engagement"]["point_index"]
 
@@ -132,12 +133,11 @@ def _render_single_drone():
                 result.get("risk_zones", []),
             )
 
-            # Add ranked interception point markers (ranks 2-5; rank 1 is the red star)
             _ranked_marker_colors = {
-                2: ("#f97316", "white"),   # orange
-                3: ("#eab308", "black"),   # yellow
-                4: ("#3b82f6", "white"),   # blue
-                5: ("#a855f7", "white"),   # purple
+                2: ("#f97316", "white"),
+                3: ("#eab308", "black"),
+                4: ("#3b82f6", "white"),
+                5: ("#a855f7", "white"),
             }
             for re in result.get("ranked_engagements", [])[1:]:
                 rank = re["rank"]
@@ -167,7 +167,6 @@ def _render_single_drone():
                     tooltip=f"Rank {rank} fallback interception point",
                 ).add_to(traj_map)
 
-            # Pre-fetch impact data and overlay ellipses on the trajectory map
             impact_data = None
             if selected_pt:
                 try:
@@ -182,7 +181,6 @@ def _render_single_drone():
                 except Exception as e:
                     st.warning(f"Could not load point impact data: {e}")
 
-            # Snap the viewport only when the selection just changed
             if "focused_point_idx" not in st.session_state:
                 st.session_state["focused_point_idx"] = selected_idx
             force_center = selected_idx != st.session_state["focused_point_idx"]
@@ -199,6 +197,7 @@ def _render_single_drone():
                 use_container_width=True,
                 height=600,
                 returned_objects=["last_object_clicked_tooltip"],
+                layer_control=folium.LayerControl(),
                 key="trajectory_map",
             )
 
@@ -208,9 +207,11 @@ def _render_single_drone():
                 st.session_state["selected_point_idx"] = clicked_idx
                 st.rerun()
 
-            # Detail panel only — no separate fallout map
             if selected_pt and impact_data:
                 st.markdown(make_point_detail_panel(selected_pt, impact_data))
+
+        with tab_map:
+            _map_fragment()
 
         with tab_impact:
             st.plotly_chart(make_impact_scatter(result), width="stretch")
@@ -248,7 +249,7 @@ def _render_single_drone():
                     radius=10, color=frame["colour"], fill=True,
                     fill_opacity=1.0, weight=3,
                 ).add_to(coloured_map)
-                st_folium(coloured_map, use_container_width=True, height=450, returned_objects=[])
+                st_folium(coloured_map, use_container_width=True, height=450, returned_objects=[], layer_control=folium.LayerControl())
 
             with col_stats:
                 is_rec = frame["is_recommended"]
@@ -296,7 +297,7 @@ def _render_batch():
         st.error("All drones failed. Check the API and retry.")
         return
 
-    st_folium(make_batch_map(batch_result), use_container_width=True, height=500, returned_objects=[])
+    st_folium(make_batch_map(batch_result), use_container_width=True, height=500, returned_objects=[], layer_control=folium.LayerControl())
 
     st.subheader("Priority Ranking")
     rows = make_priority_table(batch_result)
@@ -314,7 +315,8 @@ def _render_batch():
             "Trajectory Map", "Impact Distribution", "Risk Profile", "Statistics",
         ])
 
-        with tab_map:
+        @st.fragment
+        def _batch_map_fragment():
             scores = drone_result["trajectory_scores"]
             rec_idx = drone_result["recommended_engagement"]["point_index"]
 
@@ -334,7 +336,6 @@ def _render_batch():
                 drone_result.get("risk_zones", []),
             )
 
-            # Pre-fetch impact data and overlay ellipses on the trajectory map
             impact_data = None
             if selected_pt:
                 pt_heading = selected_pt.get("heading_deg", 0.0)
@@ -351,7 +352,6 @@ def _render_batch():
                 except Exception as e:
                     st.warning(f"Could not load point impact data: {e}")
 
-            # Snap the viewport only when the selection just changed
             batch_focused_key = f"batch_focused_point_{idx}"
             if batch_focused_key not in st.session_state:
                 st.session_state[batch_focused_key] = selected_idx
@@ -369,6 +369,7 @@ def _render_batch():
                 use_container_width=True,
                 height=500,
                 returned_objects=["last_object_clicked_tooltip"],
+                layer_control=folium.LayerControl(),
                 key=f"batch_traj_map_{idx}",
             )
 
@@ -378,9 +379,11 @@ def _render_batch():
                 st.session_state[batch_sel_key] = clicked_idx
                 st.rerun()
 
-            # Detail panel only — no separate fallout map
             if selected_pt and impact_data:
                 st.markdown(make_point_detail_panel(selected_pt, impact_data))
+
+        with tab_map:
+            _batch_map_fragment()
 
         with tab_impact:
             st.plotly_chart(make_impact_scatter(drone_result), width="stretch")
@@ -421,7 +424,7 @@ def _render_batch():
                     fill_opacity=1.0, weight=3,
                 ).add_to(coloured_map)
                 st_folium(coloured_map, use_container_width=True, height=450, returned_objects=[],
-                          key=f"batch_replay_map_{idx}")
+                          layer_control=folium.LayerControl(), key=f"batch_replay_map_{idx}")
 
             with col_stats:
                 if frame["is_recommended"]:
