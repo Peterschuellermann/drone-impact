@@ -89,3 +89,13 @@ def test_batch_returns_float32_array(populated_index):
     result = populated_index.query_batch(lats, lons, radius_m=300)
     assert result.dtype == np.float32
     assert result.shape == (2,)
+
+
+def test_disk_cache_eviction():
+    """Cache should not grow beyond cache_max."""
+    cells = make_test_population(48.0, 31.0, pop_density=1000.0, radius_cells=3)
+    idx = PopulationIndex(cells, cache_max=5)
+    for i in range(20):
+        lat = 48.0 + i * 0.01
+        idx.query(lat, 31.0, radius_m=300)
+    assert len(idx._disk_cache) <= 5
