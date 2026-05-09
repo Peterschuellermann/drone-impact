@@ -8,6 +8,7 @@ from droneimpact.dashboard.batch_input import render_batch_input
 from droneimpact.dashboard.components import (
     add_fallout_overlay,
     add_risk_zone_overlay,
+    add_sheltering_overlay,
     add_strike_overlay,
     make_batch_map,
     make_coloured_trajectory,
@@ -23,6 +24,7 @@ from droneimpact.dashboard.components import (
 from droneimpact.dashboard.utils import (
     call_api,
     call_batch_api,
+    call_building_coverage,
     call_point_impact_api,
     call_strikes_api,
     export_geojson,
@@ -141,6 +143,10 @@ def _render_single_drone():
                 scores,
                 result.get("risk_zones", []),
             )
+
+            mid_pt = scores[len(scores) // 2] if scores else rec
+            building_cells = call_building_coverage(mid_pt["lat"], mid_pt["lon"])
+            add_sheltering_overlay(traj_map, building_cells)
 
             if show_strikes and scores:
                 s_lats = [pt["lat"] for pt in scores]
@@ -363,6 +369,10 @@ def _render_batch():
                 scores,
                 drone_result.get("risk_zones", []),
             )
+
+            mid_pt_b = scores[len(scores) // 2] if scores else rec
+            building_cells_b = call_building_coverage(mid_pt_b["lat"], mid_pt_b["lon"])
+            add_sheltering_overlay(traj_map, building_cells_b)
 
             # Pre-fetch impact data and overlay ellipses on the trajectory map
             impact_data = None
