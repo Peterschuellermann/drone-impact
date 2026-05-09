@@ -155,14 +155,16 @@ def make_trajectory_map(
         ellipse = dist["impact_ellipse"]
         mode = dist["mode"]
         colour = MODE_COLOURS.get(mode, "#888888")
-        folium.Circle(
+        circle = folium.Circle(
             [ellipse["centre_lat"], ellipse["centre_lon"]],
             radius=ellipse["semi_major_m"],
             color=colour,
             fill=True,
             fill_opacity=0.15,
-            tooltip=f"{MODE_LABELS.get(mode, mode)} CEP",
-        ).add_to(impact_group)
+            popup=f"{MODE_LABELS.get(mode, mode)} CEP",
+        )
+        circle.options["interactive"] = False
+        circle.add_to(impact_group)
 
     trajectory_group.add_to(m)
     eval_group.add_to(m)
@@ -660,29 +662,32 @@ def add_fallout_overlay(
             lon = centre_lon + re * lon_per_m
             boundary.append([lat, lon])
 
-        folium.Polygon(
+        poly = folium.Polygon(
             locations=boundary,
             color=colour,
             weight=2,
             fill=True,
             fill_color=colour,
             fill_opacity=0.2,
-            tooltip=f"{label}: {casualties:.4f} expected casualties",
-        ).add_to(fallout_group)
+            popup=f"{label}: {casualties:.4f} expected casualties",
+        )
+        poly.options["interactive"] = False
+        poly.add_to(fallout_group)
 
     combined = impact_response.get("combined_danger_zone", {})
     coords = combined.get("coordinates", [])
     if coords and len(coords) > 0 and len(coords[0]) >= 3:
-        # GeoJSON coordinates are [lon, lat], Folium needs [lat, lon]
         hull_points = [[c[1], c[0]] for c in coords[0]]
-        folium.Polygon(
+        hull = folium.Polygon(
             locations=hull_points,
             color="#000000",
             weight=2,
             dash_array="10 5",
             fill=False,
-            tooltip="Combined danger zone",
-        ).add_to(fallout_group)
+            popup="Combined danger zone",
+        )
+        hull.options["interactive"] = False
+        hull.add_to(fallout_group)
 
     fallout_group.add_to(map_obj)
     return map_obj
@@ -713,13 +718,15 @@ def add_risk_zone_overlay(
                 segment_coords.append([pt["lat"], pt["lon"]])
 
         if len(segment_coords) >= 2:
-            folium.PolyLine(
+            line = folium.PolyLine(
                 segment_coords,
                 color="#dc2626",
                 weight=8,
                 opacity=0.6,
-                tooltip=f"Risk zone: peak casualties {peak:.4f}",
-            ).add_to(risk_group)
+                popup=f"Risk zone: peak casualties {peak:.4f}",
+            )
+            line.options["interactive"] = False
+            line.add_to(risk_group)
 
     risk_group.add_to(map_obj)
     return map_obj
