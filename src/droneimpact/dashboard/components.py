@@ -178,6 +178,128 @@ def make_trajectory_map(
     return m
 
 
+def _probability_colour(p: float) -> str:
+    r = int(239 * p + 59 * (1 - p))
+    g = int(68 * p + 130 * (1 - p))
+    b = int(68 * p + 246 * (1 - p))
+    return f"#{r:02x}{g:02x}{b:02x}"
+
+
+def make_multi_trajectory_map(
+    drone_lat: float,
+    drone_lon: float,
+    candidates: list[dict],
+    scored_result: dict | None = None,
+    scored_candidate_idx: int = 0,
+) -> folium.Map:
+    m = folium.Map(location=[drone_lat, drone_lon], zoom_start=7, tiles="OpenStreetMap")
+
+    folium.CircleMarker(
+        [drone_lat, drone_lon],
+        radius=8,
+        color="#3b82f6",
+        fill=True,
+        fill_opacity=1.0,
+        weight=2,
+        tooltip="Drone position",
+    ).add_to(m)
+
+    all_lats = [drone_lat]
+    all_lons = [drone_lon]
+
+    for i, candidate in enumerate(candidates):
+        target = candidate["target"]
+        probability = candidate["probability"]
+        distance_m = candidate["distance_m"]
+        waypoints = candidate["waypoints"]
+        is_selected = (i == scored_candidate_idx)
+
+        colour = _probability_colour(probability)
+
+        if is_selected:
+            weight, opacity, dash_array = 4, 1.0, None
+        elif i < 3:
+            weight, opacity, dash_array = 2, 0.6, None
+        else:
+            weight, opacity, dash_array = 1, 0.3, "6 4"
+
+        coords = [[drone_lat, drone_lon]]
+        for wp in waypoints:
+            coords.append([wp["lat"], wp["lon"]])
+            all_lats.append(wp["lat"])
+            all_lons.append(wp["lon"])
+        coords.append([target["lat"], target["lon"]])
+        all_lats.append(target["lat"])
+        all_lons.append(target["lon"])
+
+        show_group = i < 5
+        group_name = f"Target {i+1}: {target['name'][:20]}... ({probability:.0%})"
+        fg = folium.FeatureGroup(name=group_name, show=show_group)
+
+        poly_kwargs = dict(
+            locations=coords,
+            color=colour,
+            weight=weight,
+            opacity=opacity,
+        )
+        if dash_array:
+            poly_kwargs["dash_array"] = dash_array
+        folium.PolyLine(**poly_kwargs).add_to(fg)
+
+        historical_strikes = target.get("historical_strikes", 0)
+        target_radius = 5 + 3 * (min(historical_strikes, 20) / 20)
+        folium.CircleMarker(
+            [target["lat"], target["lon"]],
+            radius=target_radius,
+            color=colour,
+            fill=True,
+            fill_opacity=0.8,
+            weight=2,
+            tooltip=f"{target['name']} | {probability:.0%} | {distance_m/1000:.0f} km",
+        ).add_to(fg)
+
+        if len(coords) >= 2:
+            mid_idx = len(coords) // 2
+            mid_pt = coords[mid_idx]
+            folium.Marker(
+                location=mid_pt,
+                icon=folium.DivIcon(
+                    html=(
+                        f'<div style="font-size:10px;font-weight:bold;color:{colour};'
+                        f'text-shadow:1px 1px 2px white,-1px -1px 2px white;">'
+                        f'{probability:.0%}</div>'
+                    ),
+                    icon_size=(40, 16),
+                    icon_anchor=(20, 8),
+                ),
+            ).add_to(fg)
+
+        fg.add_to(m)
+
+    if scored_result is not None:
+        add_risk_zone_overlay(m, scored_result["trajectory_scores"], scored_result.get("risk_zones", []))
+        rec = scored_result["recommended_engagement"]
+        folium.Marker(
+            [rec["lat"], rec["lon"]],
+            icon=folium.Icon(color="red", icon="star", prefix="fa"),
+            tooltip=(
+                f"RECOMMENDED | "
+                f"Casualties: {rec['expected_casualties']:.3f} | "
+                f"Score: {rec['engagement_score']:.3f}"
+            ),
+        ).add_to(m)
+
+    folium.LayerControl().add_to(m)
+
+    if all_lats and all_lons:
+        m.fit_bounds([
+            [min(all_lats) - 0.1, min(all_lons) - 0.1],
+            [max(all_lats) + 0.1, max(all_lons) + 0.1],
+        ])
+
+    return m
+
+
 def make_impact_scatter(result: dict) -> go.Figure:
     rec = result["recommended_engagement"]
     rec_idx = rec["point_index"]

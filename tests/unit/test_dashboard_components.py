@@ -8,16 +8,23 @@ import pytest
 
 from droneimpact.dashboard.components import (
     _bearing,
+    _probability_colour,
     add_direction_arrows,
     compute_fallout_bounds,
     make_coloured_trajectory,
     make_impact_scatter,
+    make_multi_trajectory_map,
     make_risk_profile,
     make_stats_panel,
     make_trajectory_map,
     parse_point_index_from_tooltip,
 )
-from droneimpact.dashboard.utils import export_geojson, format_casualties, format_distance
+from droneimpact.dashboard.utils import (
+    compute_bearing,
+    export_geojson,
+    format_casualties,
+    format_distance,
+)
 
 
 @pytest.fixture()
@@ -324,3 +331,147 @@ class TestDirectionArrows:
         m = make_coloured_trajectory(sample_result)
         html = m._repr_html_()
         assert "RegularPolygonMarker" in html or "regularPolygonMarker" in html.lower()
+
+
+def _make_candidate(
+    name: str,
+    lat: float,
+    lon: float,
+    probability: float,
+    distance_m: float,
+    heading_delta_deg: float = 10.0,
+    historical_strikes: int = 5,
+    category: str = "energy",
+) -> dict:
+    return {
+        "target": {
+            "lat": lat,
+            "lon": lon,
+            "name": name,
+            "category": category,
+            "historical_strikes": historical_strikes,
+        },
+        "probability": probability,
+        "distance_m": distance_m,
+        "heading_delta_deg": heading_delta_deg,
+        "waypoints": [
+            {"lat": 51.0, "lon": 33.0},
+            {"lat": 50.5, "lon": 32.5},
+        ],
+    }
+
+
+@pytest.fixture()
+def sample_candidates() -> list[dict]:
+    return [
+        _make_candidate("Kyiv — energy", 50.45, 30.52, 0.40, 185_000, 12.3, 47),
+        _make_candidate("Odesa — port", 46.47, 30.73, 0.25, 280_000, 45.0, 22),
+        _make_candidate("Kharkiv — grid", 49.99, 36.23, 0.15, 120_000, 78.0, 15),
+        _make_candidate("Dnipro — industrial", 48.46, 35.04, 0.10, 200_000, 55.0, 8),
+        _make_candidate("Zaporizhzhia — plant", 47.84, 35.14, 0.06, 250_000, 62.0, 3),
+        _make_candidate("Mykolaiv — base", 46.97, 31.99, 0.04, 300_000, 90.0, 2),
+    ]
+
+
+class TestProbabilityColour:
+    def test_high_probability_is_reddish(self):
+        c = _probability_colour(1.0)
+        assert c.startswith("#")
+        r = int(c[1:3], 16)
+        assert r > 200
+
+    def test_low_probability_is_bluish(self):
+        c = _probability_colour(0.0)
+        assert c.startswith("#")
+        b = int(c[5:7], 16)
+        assert b > 200
+
+    def test_returns_valid_hex(self):
+        for p in [0.0, 0.25, 0.5, 0.75, 1.0]:
+            c = _probability_colour(p)
+            assert len(c) == 7
+            assert c.startswith("#")
+            int(c[1:], 16)
+
+
+class TestMultiTrajectoryMap:
+    def test_returns_folium_map(self, sample_candidates):
+        m = make_multi_trajectory_map(52.0, 33.5, sample_candidates)
+        assert isinstance(m, folium.Map)
+
+    def test_renders_html(self, sample_candidates):
+        m = make_multi_trajectory_map(52.0, 33.5, sample_candidates)
+        html = m._repr_html_()
+        assert "leaflet" in html.lower() or "OpenStreetMap" in html
+
+    def test_has_layer_control(self, sample_candidates):
+        m = make_multi_trajectory_map(52.0, 33.5, sample_candidates)
+        html = m._repr_html_()
+        assert "LayerControl" in html or "layerControl" in html.lower() or "layer" in html.lower()
+
+    def test_drone_marker_present(self, sample_candidates):
+        m = make_multi_trajectory_map(52.0, 33.5, sample_candidates)
+        html = m._repr_html_()
+        assert "Drone position" in html
+
+    def test_target_names_in_tooltips(self, sample_candidates):
+        m = make_multi_trajectory_map(52.0, 33.5, sample_candidates)
+        html = m._repr_html_()
+        assert "Kyiv" in html
+        assert "Odesa" in html
+
+    def test_probability_labels_present(self, sample_candidates):
+        m = make_multi_trajectory_map(52.0, 33.5, sample_candidates)
+        html = m._repr_html_()
+        assert "40%" in html
+        assert "25%" in html
+
+    def test_scored_result_adds_marker(self, sample_candidates, sample_result):
+        m = make_multi_trajectory_map(
+            52.0, 33.5, sample_candidates,
+            scored_result=sample_result,
+            scored_candidate_idx=0,
+        )
+        html = m._repr_html_()
+        assert "RECOMMENDED" in html
+
+    def test_empty_candidates(self):
+        m = make_multi_trajectory_map(52.0, 33.5, [])
+        assert isinstance(m, folium.Map)
+
+    def test_single_candidate(self):
+        c = _make_candidate("Solo target", 50.0, 30.0, 1.0, 100_000)
+        m = make_multi_trajectory_map(52.0, 33.5, [c])
+        html = m._repr_html_()
+        assert "Solo target" in html
+
+    def test_first_five_shown_by_default(self, sample_candidates):
+        m = make_multi_trajectory_map(52.0, 33.5, sample_candidates)
+        children = list(m._children.values())
+        feature_groups = [c for c in children if isinstance(c, folium.FeatureGroup)]
+        shown = [fg for fg in feature_groups if fg.show]
+        hidden = [fg for fg in feature_groups if not fg.show]
+        assert len(shown) == 5
+        assert len(hidden) == 1
+
+
+class TestComputeBearing:
+    def test_east(self):
+        assert abs(compute_bearing(0.0, 0.0, 0.0, 1.0) - 90.0) < 0.1
+
+    def test_north(self):
+        assert abs(compute_bearing(0.0, 0.0, 1.0, 0.0)) < 0.1
+
+    def test_south(self):
+        assert abs(compute_bearing(1.0, 0.0, 0.0, 0.0) - 180.0) < 0.1
+
+    def test_west(self):
+        assert abs(compute_bearing(0.0, 1.0, 0.0, 0.0) - 270.0) < 0.1
+
+    def test_matches_internal_bearing(self):
+        for lat1, lon1, lat2, lon2 in [
+            (52.0, 33.5, 50.45, 30.52),
+            (48.0, 35.0, 46.47, 30.73),
+            (0.0, 0.0, 45.0, 90.0),
+        ]:
+            assert abs(compute_bearing(lat1, lon1, lat2, lon2) - _bearing(lat1, lon1, lat2, lon2)) < 0.001

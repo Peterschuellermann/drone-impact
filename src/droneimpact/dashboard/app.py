@@ -13,6 +13,7 @@ from droneimpact.dashboard.components import (
     make_batch_map,
     make_coloured_trajectory,
     make_impact_scatter,
+    make_multi_trajectory_map,
     make_point_detail_panel,
     make_priority_table,
     make_risk_profile,
@@ -26,14 +27,16 @@ from droneimpact.dashboard.utils import (
     call_batch_api,
     call_building_coverage,
     call_point_impact_api,
+    call_predict_targets,
     call_strikes_api,
+    compute_bearing,
     export_geojson,
     load_scenarios,
 )
 
 st.set_page_config(page_title="DroneImpact", layout="wide")
 
-page = st.sidebar.radio("Mode", ["Single Drone", "Batch Analysis"])
+page = st.sidebar.radio("Mode", ["Single Drone", "Batch Analysis", "Multi-Trajectory"])
 
 
 def _render_single_drone():
@@ -485,7 +488,122 @@ def _render_batch():
                 st.markdown(make_stats_panel(results[cidx]))
 
 
+def _render_multi_trajectory():
+    st.title("DroneImpact — Multi-Trajectory Prediction")
+
+    with st.sidebar:
+        st.header("Drone State")
+        lat = st.number_input("Latitude", value=52.0, format="%.5f", min_value=-90.0, max_value=90.0)
+        lon = st.number_input("Longitude", value=33.5, format="%.5f", min_value=-180.0, max_value=180.0)
+        altitude_m = st.number_input("Altitude (m)", value=400.0, min_value=1.0, max_value=10000.0)
+        heading_deg = st.number_input("Heading (deg)", value=230.0, min_value=0.0, max_value=359.9)
+        speed_m_s = st.number_input("Speed (m/s)", value=51.4, min_value=20.0, max_value=300.0)
+
+        st.divider()
+        st.subheader("Prediction Parameters")
+        max_range_m = st.slider("Max range (km)", 50, 500, 250) * 1000
+        max_targets = st.slider("Max candidate targets", 5, 30, 15)
+
+        predict_btn = st.button("Predict Targets", type="primary", width="stretch")
+
+    if predict_btn:
+        with st.spinner("Predicting target trajectories..."):
+            prediction = call_predict_targets(
+                lat, lon, heading_deg, speed_m_s, altitude_m,
+                max_range_m=max_range_m, max_targets=max_targets,
+            )
+        if prediction is None:
+            st.error("Target prediction unavailable. Check that strike data is loaded.")
+            st.stop()
+        if not prediction["candidates"]:
+            st.warning("No reachable targets found. Try increasing range or checking strike data.")
+            st.stop()
+        st.session_state["mt_prediction"] = prediction
+        st.session_state["mt_scored_idx"] = 0
+        st.session_state["mt_scored_result"] = None
+
+    if "mt_prediction" not in st.session_state:
+        st.info("Enter drone state in the sidebar and click **Predict Targets** to begin.")
+        return
+
+    prediction = st.session_state["mt_prediction"]
+    candidates = prediction["candidates"]
+    meta = prediction["metadata"]
+    scored_idx = st.session_state.get("mt_scored_idx", 0)
+    scored_result = st.session_state.get("mt_scored_result")
+
+    if scored_result is None:
+        most_probable = candidates[0]
+        target = most_probable["target"]
+        with st.spinner("Scoring most probable trajectory..."):
+            try:
+                target_heading = compute_bearing(lat, lon, target["lat"], target["lon"])
+                scored_result = call_api(
+                    {"lat": lat, "lon": lon, "altitude_m": altitude_m,
+                     "heading_deg": target_heading, "speed_m_s": speed_m_s},
+                    max_range_m=int(most_probable["distance_m"] * 1.1),
+                )
+                st.session_state["mt_scored_result"] = scored_result
+            except Exception as e:
+                st.warning(f"Could not score trajectory: {e}")
+
+    col1, col2, col3 = st.columns(3)
+    col1.metric("Targets considered", meta["targets_considered"])
+    col2.metric("Reachable targets", meta["targets_reachable"])
+    col3.metric("Prediction time", f"{meta['prediction_time_ms']:.0f} ms")
+
+    traj_map = make_multi_trajectory_map(
+        lat, lon, candidates,
+        scored_result=scored_result,
+        scored_candidate_idx=scored_idx,
+    )
+    st.caption("Click a trajectory or target in the layer panel to explore. Most probable trajectory is scored.")
+    st_folium(traj_map, width="stretch", height=600, returned_objects=[], key="mt_map")
+
+    st.subheader("Candidate Targets")
+    table_data = []
+    for i, c in enumerate(candidates):
+        table_data.append({
+            "Rank": i + 1,
+            "Target": c["target"]["name"],
+            "Category": c["target"]["category"],
+            "Probability": f"{c['probability']:.1%}",
+            "Distance (km)": f"{c['distance_m']/1000:.0f}",
+            "Heading Δ": f"{c['heading_delta_deg']:.0f}°",
+            "Historical Strikes": c["target"]["historical_strikes"],
+        })
+    st.dataframe(table_data, use_container_width=True, hide_index=True)
+
+    st.subheader("Score a specific trajectory")
+    selected_rank = st.selectbox(
+        "Select trajectory to score",
+        options=list(range(1, len(candidates) + 1)),
+        format_func=lambda i: f"#{i}: {candidates[i-1]['target']['name']} ({candidates[i-1]['probability']:.1%})",
+        index=scored_idx,
+    )
+    selected_idx_new = selected_rank - 1
+    score_btn = st.button("Score selected trajectory")
+    if score_btn or selected_idx_new != scored_idx:
+        st.session_state["mt_scored_idx"] = selected_idx_new
+        selected_c = candidates[selected_idx_new]
+        target = selected_c["target"]
+        target_heading = compute_bearing(lat, lon, target["lat"], target["lon"])
+        with st.spinner(f"Scoring trajectory to {target['name']}..."):
+            try:
+                new_result = call_api(
+                    {"lat": lat, "lon": lon, "altitude_m": altitude_m,
+                     "heading_deg": target_heading, "speed_m_s": speed_m_s},
+                    max_range_m=int(selected_c["distance_m"] * 1.1),
+                )
+                st.session_state["mt_scored_result"] = new_result
+                st.rerun()
+            except Exception as e:
+                st.warning(f"Could not score: {e}")
+
+
 if page == "Single Drone":
     _render_single_drone()
-else:
+elif page == "Batch Analysis":
     _render_batch()
+else:
+    _render_multi_trajectory()
