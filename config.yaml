@@ -93,7 +93,7 @@ parallelism:
 cache:
   enabled: true
   max_entries: 50
-  directory: "data/cache"
+  directory: ".cache/results"
 
 data:
   population_path: "./data/kontur_ukraine.gpkg"

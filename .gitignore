@@ -6,6 +6,7 @@ __pycache__/
 *.pyo
 .mypy_cache/
 .ruff_cache/
+.cache/
 
 .pytest_cache/
 htmlcov/
