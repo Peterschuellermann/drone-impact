@@ -31,8 +31,6 @@ SHORT_TRAJECTORY_THRESHOLD = 30
 
 # --- Miss branch cache ---
 
-_miss_cache: dict[tuple, float] = {}
-
 
 def _miss_cache_key(
     lat: float, lon: float, agl: float, heading_deg: float,
@@ -43,7 +41,8 @@ def _miss_cache_key(
 
 
 def clear_miss_cache() -> None:
-    _miss_cache.clear()
+    """No-op. Miss cache is now per-ScoringEngine instance."""
+    pass
 
 
 # --- Coordinate helpers ---
@@ -71,6 +70,7 @@ class ScoringEngine:
     def __init__(self, config: AppConfig, max_point_workers: int | None = None):
         self._config = config
         self._prescan_radius = _max_frag_radius(config)
+        self._miss_cache: dict[tuple, float] = {}
         if max_point_workers is not None:
             self._max_workers = max_point_workers
         else:
@@ -156,14 +156,14 @@ class ScoringEngine:
             last.lat, last.lon, last_agl, last.heading_deg, n_samples,
             scoring_cfg.miss_cache_agl_round_m, scoring_cfg.miss_cache_heading_round_deg,
         )
-        cached = _miss_cache.get(key)
+        cached = self._miss_cache.get(key)
         if cached is not None:
             return cached
 
         miss_enu = simulate_m1(last_agl, last.heading_deg, n_samples, phys, rng=rng)
         miss_wgs84 = _enu_to_wgs84_fast(miss_enu, last.lat, last.lon)
         miss_casualties = casualty_engine.compute(miss_wgs84)
-        _miss_cache[key] = miss_casualties
+        self._miss_cache[key] = miss_casualties
         return miss_casualties
 
     # --- Population pre-scan ---

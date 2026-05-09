@@ -169,18 +169,16 @@ def test_zones_cover_trajectory(scoring, short_trajectory, flat_dem, casualty_en
 
 
 def test_miss_cache_hit(scoring, short_trajectory, flat_dem, casualty_engine):
-    from droneimpact.scoring.engine import _miss_cache, clear_miss_cache
-    clear_miss_cache()
     scoring.score_trajectory(
         short_trajectory, flat_dem, casualty_engine, (48.1, 31.0),
         rng=np.random.default_rng(0)
     )
-    cache_size_after_first = len(_miss_cache)
+    cache_size_after_first = len(scoring._miss_cache)
     scoring.score_trajectory(
         short_trajectory, flat_dem, casualty_engine, (48.1, 31.0),
         rng=np.random.default_rng(1)
     )
-    assert len(_miss_cache) == cache_size_after_first
+    assert len(scoring._miss_cache) == cache_size_after_first
 
 
 # --- Interpolation tests (I09) ---

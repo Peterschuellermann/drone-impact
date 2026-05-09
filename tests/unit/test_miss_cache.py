@@ -1,6 +1,6 @@
 import h3
 
-from droneimpact.scoring.engine import _miss_cache, _miss_cache_key, clear_miss_cache
+from droneimpact.scoring.engine import _miss_cache_key, ScoringEngine
 
 
 def test_cache_key_same_cell():
@@ -27,7 +27,8 @@ def test_cache_key_different_heading():
     assert k1 != k2
 
 
-def test_clear_cache():
-    _miss_cache[("test",)] = 42.0
-    clear_miss_cache()
-    assert len(_miss_cache) == 0
+def test_instance_cache_isolated(config):
+    engine_a = ScoringEngine(config)
+    engine_b = ScoringEngine(config)
+    engine_a._miss_cache[("test",)] = 42.0
+    assert ("test",) not in engine_b._miss_cache

@@ -31,7 +31,7 @@ from droneimpact.data.infrastructure import InfrastructureIndex
 from droneimpact.data.population import PopulationIndex
 from droneimpact.physics.trajectory import discretise_trajectory
 from droneimpact.physics.types import StateVector
-from droneimpact.scoring.engine import ScoringEngine, clear_miss_cache
+from droneimpact.scoring.engine import ScoringEngine
 
 NUM_CPU = os.cpu_count() or 1
 
@@ -83,7 +83,6 @@ def benchmark_single_drone(config, dem, casualty_engine, spacing_m, max_range_m,
     trajectory = discretise_trajectory(sv, spacing_m=spacing_m, max_range_m=max_range_m)
     n_pts = len(trajectory)
 
-    clear_miss_cache()
     engine = ScoringEngine(config, max_point_workers=point_workers)
 
     engine.score_trajectory(trajectory, dem, casualty_engine, (sv.lat, sv.lon),
@@ -91,7 +90,7 @@ def benchmark_single_drone(config, dem, casualty_engine, spacing_m, max_range_m,
 
     times = []
     for trial in range(n_trials):
-        clear_miss_cache()
+        engine = ScoringEngine(config, max_point_workers=point_workers)
         t0 = time.perf_counter()
         engine.score_trajectory(trajectory, dem, casualty_engine, (sv.lat, sv.lon),
                                 rng=np.random.default_rng(trial + 1))

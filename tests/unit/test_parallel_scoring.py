@@ -7,7 +7,7 @@ from droneimpact.data.infrastructure import InfrastructureIndex
 from droneimpact.data.population import PopulationIndex
 from droneimpact.physics.trajectory import discretise_trajectory
 from droneimpact.physics.types import StateVector
-from droneimpact.scoring.engine import ScoringEngine, clear_miss_cache
+from droneimpact.scoring.engine import ScoringEngine
 from tests.fixtures.population_small import make_test_population
 
 BOUNDS = dict(west=30.0, south=47.0, east=32.0, north=49.0)
@@ -40,7 +40,6 @@ def long_trajectory():
 
 
 def _run_scoring(config, trajectory, flat_dem, casualty_engine, point_workers, seed=42):
-    clear_miss_cache()
     engine = ScoringEngine(config, max_point_workers=point_workers)
     return engine.score_trajectory(
         trajectory, flat_dem, casualty_engine, (trajectory[0].lat, trajectory[0].lon),
