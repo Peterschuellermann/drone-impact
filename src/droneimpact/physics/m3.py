@@ -1,11 +1,59 @@
 from __future__ import annotations
 
 import numpy as np
+from numba import njit, prange
 
 from droneimpact.config import PhysicsConfig
 
-_RHO = 1.225  # kg/m³ sea-level air density
-_G = 9.81     # m/s²
+_RHO = 1.225  # kg/m^3 sea-level air density
+_G = 9.81     # m/s^2
+
+
+@njit(parallel=True, cache=True)
+def _m3_kernel(
+    v_east: np.ndarray,
+    v_north: np.ndarray,
+    v_vert: np.ndarray,
+    half_A_cd_over_m: np.ndarray,
+    altitude_agl_m: float,
+    dt: float,
+    max_steps: int,
+    scale_height: float,
+    rho_0: float,
+    g: float,
+) -> np.ndarray:
+    n = v_east.shape[0]
+    result = np.empty((n, 2), dtype=np.float64)
+
+    for i in prange(n):
+        pos_e = 0.0
+        pos_n = 0.0
+        alt = altitude_agl_m
+        ve = v_east[i]
+        vn = v_north[i]
+        vv = v_vert[i]
+        drag_factor = half_A_cd_over_m[i]
+
+        for t in range(max_steps):
+            if alt <= 0.0:
+                break
+
+            rho = rho_0 * np.exp(-alt / scale_height)
+            spd = np.sqrt(ve * ve + vn * vn + vv * vv)
+            a_drag = drag_factor * rho * spd
+
+            ve -= a_drag * ve * dt
+            vn -= a_drag * vn * dt
+            vv += (-g - a_drag * vv) * dt
+
+            pos_e += ve * dt
+            pos_n += vn * dt
+            alt += vv * dt
+
+        result[i, 0] = pos_e
+        result[i, 1] = pos_n
+
+    return result
 
 
 def simulate_m3(
@@ -31,7 +79,6 @@ def simulate_m3(
     shahed = config.shahed136
     dt = config.m3_dt_s
 
-    # Stochastic initial conditions — all (N,) arrays
     spread = config.m3_heading_spread_deg
     heading_samples = rng.uniform(heading_deg - spread, heading_deg + spread, n_samples)
     reduced_speed = speed_m_s * config.m3_speed_reduction_factor
@@ -48,7 +95,6 @@ def simulate_m3(
         5.0,
     )
 
-    # Initial velocity components
     hdg_rad = np.radians(heading_samples)
     pitch_rad = np.radians(pitch_deg)
     cos_pitch = np.cos(pitch_rad)
@@ -58,33 +104,10 @@ def simulate_m3(
     v_north = speed_samples * cos_pitch * np.cos(hdg_rad)
     v_vert = speed_samples * sin_pitch
 
-    pos_east = np.zeros(n_samples)
-    pos_north = np.zeros(n_samples)
-    alt = np.full(n_samples, altitude_agl_m, dtype=np.float64)
-    alive = alt > 0
-
-    # Pre-factor that is constant across timesteps; density is applied per step.
     half_A_cd_over_m = 0.5 * shahed.fragment_reference_area_m2 * cd_samples / mass_samples
-    scale_height = config.atmosphere_scale_height_m
 
-    for _ in range(config.m3_max_steps):
-        if not np.any(alive):
-            break
-
-        # Altitude-dependent air density: exponential atmosphere model
-        rho = _RHO * np.exp(-alt / scale_height)
-
-        spd = np.sqrt(v_east ** 2 + v_north ** 2 + v_vert ** 2)
-
-        a_drag = half_A_cd_over_m * rho * spd
-
-        v_east -= alive * a_drag * v_east * dt
-        v_north -= alive * a_drag * v_north * dt
-        v_vert = v_vert + alive * (-_G - a_drag * v_vert) * dt
-
-        pos_east += alive * v_east * dt
-        pos_north += alive * v_north * dt
-        alt += alive * v_vert * dt
-        alive = alive & (alt > 0)
-
-    return np.stack([pos_east, pos_north], axis=1)
+    return _m3_kernel(
+        v_east, v_north, v_vert, half_A_cd_over_m,
+        altitude_agl_m, dt, config.m3_max_steps,
+        config.atmosphere_scale_height_m, _RHO, _G,
+    )

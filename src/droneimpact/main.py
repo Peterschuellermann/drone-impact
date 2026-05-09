@@ -61,6 +61,12 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.warning("Failed to load data: %s — starting in degraded mode", e)
 
+    from droneimpact.physics.warmup import warmup_jit
+    logger.info("Warming up Numba JIT kernels...")
+    t_jit = time.perf_counter()
+    warmup_jit()
+    logger.info("JIT warm-up complete in %.1f s", time.perf_counter() - t_jit)
+
     n_batch_workers = cfg.parallelism.effective_batch_workers
     if n_batch_workers > 1 and app.state.data_loaded:
         try:

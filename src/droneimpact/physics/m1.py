@@ -1,8 +1,26 @@
 from __future__ import annotations
 
 import numpy as np
+from numba import njit, prange
 
 from droneimpact.config import PhysicsConfig
+
+
+@njit(parallel=True, cache=True)
+def _m1_kernel(
+    heading_samples: np.ndarray,
+    glide_samples: np.ndarray,
+    altitude_agl_m: float,
+) -> np.ndarray:
+    n = heading_samples.shape[0]
+    result = np.empty((n, 2), dtype=np.float64)
+    for i in prange(n):
+        glide = max(glide_samples[i], 0.5)
+        range_m = altitude_agl_m * glide
+        hdg_rad = np.radians(heading_samples[i])
+        result[i, 0] = range_m * np.sin(hdg_rad)
+        result[i, 1] = range_m * np.cos(hdg_rad)
+    return result
 
 
 def simulate_m1(
@@ -27,12 +45,5 @@ def simulate_m1(
     glide_samples = rng.normal(
         config.shahed136.glide_ratio, config.m1_sigma_glide_ratio, n_samples
     )
-    glide_samples = np.maximum(glide_samples, 0.5)  # physical floor
 
-    range_samples = altitude_agl_m * glide_samples
-
-    heading_rad = np.radians(heading_samples)
-    east = range_samples * np.sin(heading_rad)
-    north = range_samples * np.cos(heading_rad)
-
-    return np.stack([east, north], axis=1)
+    return _m1_kernel(heading_samples, glide_samples, altitude_agl_m)

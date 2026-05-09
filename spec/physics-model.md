@@ -214,12 +214,12 @@ Known limitation: A significant fraction of Shaheds that have been intercepted h
 | Single drone, 2,000 samples, 50 evaluation points | < 500 ms |
 | Batch of 50 drones (same params) | < 15 s |
 
-Monte Carlo samples are independent — parallelise across both samples and trajectory points using vectorised NumPy operations or JIT compilation (Numba/JAX). Avoid per-sample Python loops.
+Monte Carlo samples are independent — parallelise across both samples and trajectory points.
 
-**Vectorisation strategy:**
-- Represent all N samples as arrays: `heading_samples[N]`, `speed_samples[N]`, etc.
-- Apply equations of motion as array operations
-- Single `np.where(z_samples <= terrain_elevation, ...)` to terminate at impact
+**Computation strategy:**
+Physics kernels (M1, M2, M3) are compiled with Numba `@njit(parallel=True, cache=True)`. Each kernel receives pre-generated random arrays and config scalars — no Python objects cross the JIT boundary. The outer loop iterates over samples with `prange` for multi-core parallelism; the inner loop (M2/M3 timestep integration) runs as scalar operations per sample, fitting in L1 cache. This releases the GIL, enabling the per-point ThreadPoolExecutor to achieve real parallelism.
+
+Compiled kernels are cached in `__pycache__` via Numba's `cache=True`. A warm-up call at server startup triggers compilation so the first request doesn't pay the JIT cost.
 
 ---
 
