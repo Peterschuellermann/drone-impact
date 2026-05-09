@@ -229,38 +229,33 @@ class ScoringEngine:
         zones: list[RiskZone] = []
         in_zone = False
         start_idx = 0
+        start_dist = 0.0
         peak = 0.0
+        prev_ps: PointScore | None = None
 
         for ps in point_scores:
             is_high = ps.hit_branch_expected_casualties > threshold
             if is_high and not in_zone:
                 in_zone = True
                 start_idx = ps.point_index
+                start_dist = ps.distance_from_start_m
                 peak = ps.hit_branch_expected_casualties
             elif is_high and in_zone:
                 peak = max(peak, ps.hit_branch_expected_casualties)
             elif not is_high and in_zone:
-                end_idx = ps.point_index - 1
-                start_dist = next(
-                    p.distance_from_start_m for p in point_scores if p.point_index == start_idx
-                )
-                end_dist = next(
-                    p.distance_from_start_m for p in point_scores if p.point_index == end_idx
-                )
+                assert prev_ps is not None
                 zones.append(RiskZone(
                     start_index=start_idx,
-                    end_index=end_idx,
+                    end_index=prev_ps.point_index,
                     start_distance_m=start_dist,
-                    end_distance_m=end_dist,
+                    end_distance_m=prev_ps.distance_from_start_m,
                     peak_expected_casualties=peak,
                 ))
                 in_zone = False
+            prev_ps = ps
 
         if in_zone:
             last = point_scores[-1]
-            start_dist = next(
-                p.distance_from_start_m for p in point_scores if p.point_index == start_idx
-            )
             zones.append(RiskZone(
                 start_index=start_idx,
                 end_index=last.point_index,
