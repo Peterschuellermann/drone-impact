@@ -130,7 +130,25 @@ def _render_single_drone():
             if "selected_point_idx" not in st.session_state:
                 st.session_state["selected_point_idx"] = rec_idx
 
-            selected_idx = st.session_state["selected_point_idx"]
+            point_indices = [pt["point_index"] for pt in scores]
+            point_labels = {
+                pt["point_index"]: (
+                    f"Point {pt['point_index']} — "
+                    f"{pt['distance_from_current_m']:.0f} m — "
+                    f"Casualties: {pt['expected_casualties']:.3f}"
+                    + (" [RECOMMENDED]" if pt["point_index"] == rec_idx else "")
+                )
+                for pt in scores
+            }
+            selected_idx = st.selectbox(
+                "Select evaluation point",
+                options=point_indices,
+                index=point_indices.index(st.session_state["selected_point_idx"])
+                if st.session_state["selected_point_idx"] in point_indices else 0,
+                format_func=lambda i: point_labels[i],
+                key="point_selector",
+            )
+            st.session_state["selected_point_idx"] = selected_idx
 
             score_by_idx = {pt["point_index"]: pt for pt in scores}
             selected_pt = score_by_idx.get(selected_idx)
@@ -193,44 +211,22 @@ def _render_single_drone():
                 except Exception as e:
                     st.warning(f"Could not load point impact data: {e}")
 
-            if "focused_point_idx" not in st.session_state:
-                st.session_state["focused_point_idx"] = selected_idx
-            force_center = selected_idx != st.session_state["focused_point_idx"]
-            if force_center:
-                st.session_state["focused_point_idx"] = selected_idx
-
-            saved = st.session_state.get("map_view", {})
-            if force_center and selected_pt:
+            map_center = None
+            map_zoom = None
+            if selected_pt:
                 map_center = [selected_pt["lat"], selected_pt["lon"]]
                 map_zoom = 11
-            else:
-                map_center = saved.get("center") or None
-                map_zoom = saved.get("zoom") or None
 
-            st.caption("Click an evaluation point to inspect its fallout area.")
-            traj_data = st_folium(
+            st_folium(
                 traj_map,
                 center=map_center,
                 zoom=map_zoom,
                 use_container_width=True,
                 height=600,
-                returned_objects=["last_object_clicked_tooltip", "center", "zoom"],
+                returned_objects=[],
                 layer_control=folium.LayerControl(),
                 key="trajectory_map",
             )
-
-            if traj_data:
-                if traj_data.get("center"):
-                    st.session_state["map_view"] = {
-                        "center": [traj_data["center"]["lat"], traj_data["center"]["lng"]],
-                        "zoom": traj_data.get("zoom"),
-                    }
-
-            clicked_tooltip = (traj_data or {}).get("last_object_clicked_tooltip")
-            clicked_idx = parse_point_index_from_tooltip(clicked_tooltip)
-            if clicked_idx is not None and clicked_idx != selected_idx:
-                st.session_state["selected_point_idx"] = clicked_idx
-                st.rerun(scope="fragment")
 
             if selected_pt and impact_data:
                 st.markdown(make_point_detail_panel(selected_pt, impact_data))
@@ -349,7 +345,25 @@ def _render_batch():
             if batch_sel_key not in st.session_state:
                 st.session_state[batch_sel_key] = rec_idx
 
-            selected_idx = st.session_state[batch_sel_key]
+            point_indices = [pt["point_index"] for pt in scores]
+            point_labels = {
+                pt["point_index"]: (
+                    f"Point {pt['point_index']} — "
+                    f"{pt['distance_from_current_m']:.0f} m — "
+                    f"Casualties: {pt['expected_casualties']:.3f}"
+                    + (" [RECOMMENDED]" if pt["point_index"] == rec_idx else "")
+                )
+                for pt in scores
+            }
+            selected_idx = st.selectbox(
+                "Select evaluation point",
+                options=point_indices,
+                index=point_indices.index(st.session_state[batch_sel_key])
+                if st.session_state[batch_sel_key] in point_indices else 0,
+                format_func=lambda i: point_labels[i],
+                key=f"batch_point_selector_{idx}",
+            )
+            st.session_state[batch_sel_key] = selected_idx
 
             score_by_idx = {pt["point_index"]: pt for pt in scores}
             selected_pt = score_by_idx.get(selected_idx)
@@ -381,46 +395,22 @@ def _render_batch():
                 except Exception as e:
                     st.warning(f"Could not load point impact data: {e}")
 
-            batch_focused_key = f"batch_focused_point_{idx}"
-            if batch_focused_key not in st.session_state:
-                st.session_state[batch_focused_key] = selected_idx
-            force_center = selected_idx != st.session_state[batch_focused_key]
-            if force_center:
-                st.session_state[batch_focused_key] = selected_idx
-
-            batch_view_key = f"batch_map_view_{idx}"
-            saved = st.session_state.get(batch_view_key, {})
-            if force_center and selected_pt:
+            map_center = None
+            map_zoom = None
+            if selected_pt:
                 map_center = [selected_pt["lat"], selected_pt["lon"]]
                 map_zoom = 11
-            else:
-                map_center = saved.get("center") or None
-                map_zoom = saved.get("zoom") or None
 
-            st.caption("Click an evaluation point to inspect its fallout area.")
-            traj_data = st_folium(
+            st_folium(
                 traj_map,
                 center=map_center,
                 zoom=map_zoom,
                 use_container_width=True,
                 height=500,
-                returned_objects=["last_object_clicked_tooltip", "center", "zoom"],
+                returned_objects=[],
                 layer_control=folium.LayerControl(),
                 key=f"batch_traj_map_{idx}",
             )
-
-            if traj_data:
-                if traj_data.get("center"):
-                    st.session_state[batch_view_key] = {
-                        "center": [traj_data["center"]["lat"], traj_data["center"]["lng"]],
-                        "zoom": traj_data.get("zoom"),
-                    }
-
-            clicked_tooltip = (traj_data or {}).get("last_object_clicked_tooltip")
-            clicked_idx = parse_point_index_from_tooltip(clicked_tooltip)
-            if clicked_idx is not None and clicked_idx != selected_idx:
-                st.session_state[batch_sel_key] = clicked_idx
-                st.rerun(scope="fragment")
 
             if selected_pt and impact_data:
                 st.markdown(make_point_detail_panel(selected_pt, impact_data))
