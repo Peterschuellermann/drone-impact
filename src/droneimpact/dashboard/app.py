@@ -206,16 +206,22 @@ def _render_single_drone():
                 map_center = [selected_pt["lat"], selected_pt["lon"]]
                 map_zoom = 11
 
-            st_folium(
+            traj_data = st_folium(
                 traj_map,
                 center=map_center,
                 zoom=map_zoom,
                 use_container_width=True,
                 height=600,
-                returned_objects=[],
+                returned_objects=["last_object_clicked_tooltip"],
                 layer_control=folium.LayerControl(),
                 key="trajectory_map",
             )
+
+            clicked_tooltip = (traj_data or {}).get("last_object_clicked_tooltip")
+            clicked_idx = parse_point_index_from_tooltip(clicked_tooltip)
+            if clicked_idx is not None and clicked_idx != selected_idx:
+                st.session_state["selected_point_idx"] = clicked_idx
+                st.rerun(scope="fragment")
 
             if selected_pt and impact_data:
                 st.markdown(make_point_detail_panel(selected_pt, impact_data))
@@ -386,16 +392,22 @@ def _render_batch():
                 map_center = [selected_pt["lat"], selected_pt["lon"]]
                 map_zoom = 11
 
-            st_folium(
+            traj_data = st_folium(
                 traj_map,
                 center=map_center,
                 zoom=map_zoom,
                 use_container_width=True,
                 height=500,
-                returned_objects=[],
+                returned_objects=["last_object_clicked_tooltip"],
                 layer_control=folium.LayerControl(),
                 key=f"batch_traj_map_{idx}",
             )
+
+            clicked_tooltip = (traj_data or {}).get("last_object_clicked_tooltip")
+            clicked_idx = parse_point_index_from_tooltip(clicked_tooltip)
+            if clicked_idx is not None and clicked_idx != selected_idx:
+                st.session_state[batch_sel_key] = clicked_idx
+                st.rerun(scope="fragment")
 
             if selected_pt and impact_data:
                 st.markdown(make_point_detail_panel(selected_pt, impact_data))
