@@ -15,6 +15,7 @@ from droneimpact.api.buildings import router as buildings_router
 from droneimpact.api.cache import ResultCache, compute_fingerprint
 from droneimpact.api.data import router as data_router
 from droneimpact.api.health import router as health_router
+from droneimpact.api.predict import router as predict_router
 from droneimpact.config import load_config
 from droneimpact.data.buildings import BuildingIndex
 from droneimpact.data.dem import DEMIndex
@@ -149,6 +150,7 @@ def create_app() -> FastAPI:
     app.include_router(batch_router)
     app.include_router(buildings_router)
     app.include_router(data_router)
+    app.include_router(predict_router)
     return app
 
 
