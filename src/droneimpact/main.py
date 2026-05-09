@@ -14,6 +14,7 @@ from droneimpact.api.batch import JobStore, _init_batch_worker, router as batch_
 from droneimpact.api.cache import ResultCache, compute_fingerprint
 from droneimpact.api.health import router as health_router
 from droneimpact.config import load_config
+from droneimpact.data.buildings import BuildingIndex
 from droneimpact.data.dem import DEMIndex
 from droneimpact.data.infrastructure import InfrastructureIndex
 from droneimpact.data.population import PopulationIndex
@@ -30,6 +31,7 @@ async def lifespan(app: FastAPI):
     app.state.dem = None
     app.state.population = None
     app.state.infrastructure = None
+    app.state.buildings = BuildingIndex.empty(cfg.casualty.sheltering)
     app.state.job_store = JobStore()
     app.state.batch_executor = None
 
@@ -56,6 +58,20 @@ async def lifespan(app: FastAPI):
             cfg.data.infrastructure_path, cfg.casualty.infrastructure
         )
         logger.info("Infrastructure loaded in %.1f s", time.perf_counter() - t2)
+
+        if cfg.data.buildings_path and Path(cfg.data.buildings_path).exists():
+            t3 = time.perf_counter()
+            logger.info("Loading buildings from %s", cfg.data.buildings_path)
+            app.state.buildings = BuildingIndex.load_from_file(
+                cfg.data.buildings_path, cfg.casualty.sheltering
+            )
+            logger.info(
+                "Buildings loaded in %.1f s (%d cells)",
+                time.perf_counter() - t3,
+                app.state.buildings.cell_count,
+            )
+        else:
+            logger.info("No buildings data — sheltering disabled")
 
         app.state.data_loaded = True
         logger.info("All data loaded. Total startup: %.1f s", time.perf_counter() - t0)
@@ -94,10 +110,11 @@ async def lifespan(app: FastAPI):
                 dem=app.state.dem,
                 population=app.state.population,
                 infrastructure=app.state.infrastructure,
+                buildings=app.state.buildings,
                 data_loaded=True,
                 population_cells=app.state.population_cells,
             )
-            ctx = mp.get_context("fork")
+            ctx = mp.get_context("spawn")
             executor = ProcessPoolExecutor(
                 max_workers=n_batch_workers,
                 mp_context=ctx,

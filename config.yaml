@@ -66,6 +66,19 @@ casualty:
     - {radius_m: 80, probability: 0.30}
     - {radius_m: 200, probability: 0.10}
     - {radius_m: 400, probability: 0.02}
+  sheltering:
+    reinforced_concrete:
+      osm_tags: ["apartments", "commercial", "industrial", "public"]
+      blast_reduction: 0.80
+      frag_reduction: 0.90
+    masonry:
+      osm_tags: ["residential", "office", "retail"]
+      blast_reduction: 0.50
+      frag_reduction: 0.70
+    light_structure:
+      osm_tags: ["house", "garage", "shed", "farm"]
+      blast_reduction: 0.10
+      frag_reduction: 0.30
   infrastructure:
     penalty_radius_m: 500.0
     max_penalty: 10.0
@@ -87,7 +100,7 @@ scoring:
 
 parallelism:
   point_workers: 0    # per-point thread parallelism; 0 = auto (Numba releases GIL)
-  batch_workers: 0    # per-drone process parallelism; 0 = auto; fork context shares memory via COW
+  batch_workers: 0    # per-drone process parallelism; 0 = auto (cpu_count)
   batch_parallel_threshold: 2
 
 cache:
@@ -99,6 +112,7 @@ data:
   population_path: "./data/kontur_ukraine.gpkg"
   dem_path: "./data/ukraine_dem.tif"
   infrastructure_path: "./data/ukraine_infra.geojson"
+  buildings_path: "./data/ukraine_buildings.geojson"
 
 dashboard:
   api_endpoint: "http://localhost:8000"
