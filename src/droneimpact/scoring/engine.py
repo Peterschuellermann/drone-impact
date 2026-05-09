@@ -19,6 +19,7 @@ from droneimpact.scoring.explain import explain
 from droneimpact.scoring.types import (
     EngagementZone,
     ImpactDistribution,
+    InterceptionZone,
     ModeScore,
     PointScore,
     RankedEngagement,
@@ -271,6 +272,158 @@ class ScoringEngine:
 
         return zones
 
+    # --- Interception zones ---
+
+    @staticmethod
+    def _classify_risk(
+        hit_casualties: float,
+        threshold: float,
+    ) -> str:
+        if hit_casualties < threshold * 0.2:
+            return "safe"
+        elif hit_casualties < threshold * 0.5:
+            return "caution"
+        elif hit_casualties < threshold:
+            return "elevated"
+        return "no_go"
+
+    @staticmethod
+    def _build_corridor_polygon(
+        points: list[PointScore],
+        radius_m: float,
+    ) -> list[list[float]]:
+        if len(points) < 2:
+            lat, lon = points[0].lat, points[0].lon
+            lat_per_m = 1.0 / 111_000.0
+            lon_per_m = 1.0 / (111_000.0 * max(math.cos(math.radians(lat)), 0.01))
+            dlat = radius_m * lat_per_m
+            dlon = radius_m * lon_per_m
+            return [
+                [lat - dlat, lon - dlon],
+                [lat - dlat, lon + dlon],
+                [lat + dlat, lon + dlon],
+                [lat + dlat, lon - dlon],
+            ]
+
+        left_side: list[list[float]] = []
+        right_side: list[list[float]] = []
+
+        for i, ps in enumerate(points):
+            if i < len(points) - 1:
+                dx = points[i + 1].lon - ps.lon
+                dy = points[i + 1].lat - ps.lat
+            else:
+                dx = ps.lon - points[i - 1].lon
+                dy = ps.lat - points[i - 1].lat
+
+            length = math.hypot(dx, dy)
+            if length < 1e-12:
+                if left_side:
+                    left_side.append(left_side[-1])
+                    right_side.append(right_side[-1])
+                continue
+
+            nx, ny = -dy / length, dx / length
+
+            lat_per_m = 1.0 / 111_000.0
+            lon_per_m = 1.0 / (111_000.0 * max(math.cos(math.radians(ps.lat)), 0.01))
+
+            left_side.append([
+                ps.lat + ny * radius_m * lat_per_m,
+                ps.lon + nx * radius_m * lon_per_m,
+            ])
+            right_side.append([
+                ps.lat - ny * radius_m * lat_per_m,
+                ps.lon - nx * radius_m * lon_per_m,
+            ])
+
+        return left_side + list(reversed(right_side))
+
+    def _compute_interception_zones(
+        self,
+        point_scores: list[PointScore],
+        impact_dists: list[ImpactDistribution],
+    ) -> list[InterceptionZone]:
+        scoring_cfg = self._config.scoring
+        eng_cfg = self._config.engagement
+        threshold = eng_cfg.high_risk_threshold
+        min_pts = scoring_cfg.interception_zone_min_points
+
+        classified = [
+            (ps, self._classify_risk(ps.hit_branch_expected_casualties, threshold))
+            for ps in point_scores
+        ]
+
+        segments: list[list[tuple[PointScore, str]]] = []
+        current_seg: list[tuple[PointScore, str]] = [classified[0]]
+
+        for ps, cls in classified[1:]:
+            if cls != current_seg[0][1]:
+                segments.append(current_seg)
+                current_seg = [(ps, cls)]
+            else:
+                current_seg.append((ps, cls))
+        segments.append(current_seg)
+
+        dist_by_point: dict[int, list[ImpactDistribution]] = {}
+        for d in impact_dists:
+            dist_by_point.setdefault(d.point_index, []).append(d)
+
+        zones: list[InterceptionZone] = []
+        zone_id = 0
+
+        for seg in segments:
+            if len(seg) < min_pts:
+                continue
+
+            risk_class = seg[0][1]
+            seg_points = [ps for ps, _ in seg]
+
+            avg_speed = sum(ps.speed_m_s for ps in seg_points) / len(seg_points)
+            uncertainty_r = (
+                scoring_cfg.drone_maneuverability_radius_m
+                + avg_speed * scoring_cfg.interception_timing_uncertainty_s
+            )
+
+            corridor = self._build_corridor_polygon(seg_points, uncertainty_r)
+
+            length_m = seg_points[-1].distance_from_start_m - seg_points[0].distance_from_start_m
+            timing_window_m = avg_speed * scoring_cfg.interception_timing_uncertainty_s
+            n_shots = max(1, length_m / timing_window_m) if timing_window_m > 0 else 1
+            intercept_prob = 1.0 - (1.0 - eng_cfg.p_kill) ** n_shots
+
+            scores = [ps.engagement_score for ps in seg_points]
+            casualties = [ps.hit_branch_expected_casualties for ps in seg_points]
+            best_ps = min(seg_points, key=lambda p: p.engagement_score)
+
+            fall_ellipses = dist_by_point.get(best_ps.point_index, [])
+
+            zones.append(InterceptionZone(
+                zone_id=zone_id,
+                risk_class=risk_class,
+                start_index=seg_points[0].point_index,
+                end_index=seg_points[-1].point_index,
+                start_lat=seg_points[0].lat,
+                start_lon=seg_points[0].lon,
+                end_lat=seg_points[-1].lat,
+                end_lon=seg_points[-1].lon,
+                start_distance_m=seg_points[0].distance_from_start_m,
+                end_distance_m=seg_points[-1].distance_from_start_m,
+                length_m=length_m,
+                corridor_polygon=corridor,
+                uncertainty_radius_m=uncertainty_r,
+                intercept_probability=intercept_prob,
+                mean_engagement_score=float(np.mean(scores)),
+                best_engagement_score=best_ps.engagement_score,
+                best_point_index=best_ps.point_index,
+                peak_expected_casualties=max(casualties),
+                mean_expected_casualties=float(np.mean(casualties)),
+                fall_ellipses=fall_ellipses,
+            ))
+            zone_id += 1
+
+        return zones
+
     # --- Safe intercept constraint (F20) ---
 
     def _apply_safe_intercept_constraint(
@@ -367,6 +520,8 @@ class ScoringEngine:
             "simulation_time_ms": elapsed_ms,
         }
 
+        interception_zones = self._compute_interception_zones(point_scores, impact_dists)
+
         return TrajectoryResult(
             trajectory_scores=point_scores,
             recommended_engagement=recommended,
@@ -376,6 +531,7 @@ class ScoringEngine:
             risk_zones=risk_zones,
             unconstrained_optimum=unconstrained_optimum,
             ranked_engagements=ranked_engagements,
+            interception_zones=interception_zones,
         )
 
     # --- Main entry point ---

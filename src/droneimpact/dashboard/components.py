@@ -658,6 +658,84 @@ def add_risk_zone_overlay(
     return map_obj
 
 
+RISK_CLASS_COLOURS = {
+    "safe": "#22c55e",
+    "caution": "#f59e0b",
+    "elevated": "#f97316",
+    "no_go": "#ef4444",
+}
+
+RISK_CLASS_LABELS = {
+    "safe": "Safe",
+    "caution": "Caution",
+    "elevated": "Elevated",
+    "no_go": "No-Go",
+}
+
+
+def add_interception_zones_layer(
+    map_obj: folium.Map,
+    interception_zones: list[dict],
+) -> folium.Map:
+    if not interception_zones:
+        return map_obj
+
+    zone_group = folium.FeatureGroup(name="Interception Zones", show=True)
+
+    for iz in interception_zones:
+        risk_class = iz.get("risk_class", "safe")
+        colour = RISK_CLASS_COLOURS.get(risk_class, "#888888")
+        label = RISK_CLASS_LABELS.get(risk_class, risk_class)
+        polygon = iz.get("corridor_polygon", [])
+
+        if len(polygon) < 3:
+            continue
+
+        prob_pct = iz.get("intercept_probability", 0) * 100
+        length_km = iz.get("length_m", 0) / 1000
+        tooltip = (
+            f"{label} zone | "
+            f"P(intercept): {prob_pct:.0f}% | "
+            f"Length: {length_km:.1f} km | "
+            f"Peak casualties: {iz.get('peak_expected_casualties', 0):.4f}"
+        )
+
+        fill_opacity = 0.25 if risk_class == "safe" else 0.20 if risk_class == "caution" else 0.15
+        folium.Polygon(
+            locations=polygon,
+            color=colour,
+            weight=2,
+            fill=True,
+            fill_color=colour,
+            fill_opacity=fill_opacity,
+            tooltip=tooltip,
+        ).add_to(zone_group)
+
+        for fe in iz.get("fall_ellipses", []):
+            ellipse = fe.get("impact_ellipse", {})
+            c_lat = ellipse.get("centre_lat", 0)
+            c_lon = ellipse.get("centre_lon", 0)
+            semi_major = ellipse.get("semi_major_m", 0)
+            if semi_major <= 0:
+                continue
+            mode = fe.get("mode", "")
+            mode_colour = MODE_COLOURS.get(mode, "#888888")
+            folium.Circle(
+                location=[c_lat, c_lon],
+                radius=semi_major,
+                color=mode_colour,
+                weight=1,
+                dash_array="5 5",
+                fill=True,
+                fill_color=mode_colour,
+                fill_opacity=0.08,
+                tooltip=f"Post-intercept fall area ({MODE_LABELS.get(mode, mode)})",
+            ).add_to(zone_group)
+
+    zone_group.add_to(map_obj)
+    return map_obj
+
+
 def make_point_detail_panel(point_data: dict, impact_response: dict) -> str:
     """Generate markdown summary for a selected evaluation point."""
     dist_km = point_data.get("distance_from_current_m", 0) / 1000
