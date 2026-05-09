@@ -133,6 +133,8 @@ class ScoringEngine:
             engagement_score=score,
             breakdown=breakdown,
             miss_branch_expected_casualties=miss_casualties,
+            heading_deg=pt.heading_deg,
+            speed_m_s=pt.speed_m_s,
             hit_branch_expected_casualties=hit_casualties,
         )
 
@@ -455,6 +457,8 @@ class ScoringEngine:
                         engagement_score=dense_score,
                         breakdown=orig.breakdown,
                         miss_branch_expected_casualties=orig.miss_branch_expected_casualties,
+                        heading_deg=orig.heading_deg,
+                        speed_m_s=orig.speed_m_s,
                         population_within_frag_radius=orig.population_within_frag_radius,
                         hit_branch_expected_casualties=orig.hit_branch_expected_casualties,
                     )
@@ -475,6 +479,8 @@ class ScoringEngine:
                     engagement_score=miss_only_score,
                     breakdown={},
                     miss_branch_expected_casualties=miss_casualties,
+                    heading_deg=pt.heading_deg,
+                    speed_m_s=pt.speed_m_s,
                     population_within_frag_radius=float(pop_at_points[i]),
                 ))
 
@@ -588,6 +594,8 @@ class ScoringEngine:
                     engagement_score=float(interp_scores[i]),
                     breakdown=ps.breakdown,
                     miss_branch_expected_casualties=ps.miss_branch_expected_casualties,
+                    heading_deg=ps.heading_deg,
+                    speed_m_s=ps.speed_m_s,
                     population_within_frag_radius=ps.population_within_frag_radius,
                 ))
         return result

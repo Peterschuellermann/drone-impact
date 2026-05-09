@@ -19,6 +19,8 @@ class PointScore:
     engagement_score: float
     breakdown: dict[str, ModeScore]
     miss_branch_expected_casualties: float
+    heading_deg: float = 0.0
+    speed_m_s: float = 0.0
     population_within_frag_radius: float = 0.0
     hit_branch_expected_casualties: float = 0.0
     high_risk: bool = False

@@ -89,6 +89,8 @@ Altitudes are **metres above mean sea level (MSL)** in the API. The physics engi
       "lon": 31.1656,
       "altitude_m": 400,
       "distance_from_current_m": 0,
+      "heading_deg": 315.0,
+      "speed_m_s": 51.4,
       "expected_casualties": 0.18,
       "breakdown": {
         "p_kill": 0.50,
@@ -167,7 +169,7 @@ Altitudes are **metres above mean sea level (MSL)** in the API. The physics engi
 | Field | Description |
 |---|---|
 | `recommended_engagement` | The single trajectory point minimising expected casualties |
-| `trajectory_scores` | One entry per evaluation point, ordered by distance from current position |
+| `trajectory_scores` | One entry per evaluation point, ordered by distance from current position. Each point includes `heading_deg` and `speed_m_s` from the discretised trajectory |
 | `expected_casualties` | Expected number of casualties (weighted mean across outcome modes and Monte Carlo samples) |
 | `engagement_score` | Alias for `expected_casualties` — the primary optimisation target |
 | `breakdown.modes` | Per-mode contribution to the expected casualty count |

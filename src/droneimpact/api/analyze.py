@@ -167,6 +167,8 @@ def _build_response(
             lon=ps.lon,
             altitude_m=ps.altitude_m,
             distance_from_current_m=ps.distance_from_start_m,
+            heading_deg=ps.heading_deg,
+            speed_m_s=ps.speed_m_s,
             expected_casualties=ps.expected_casualties,
             engagement_score=ps.engagement_score,
             breakdown={

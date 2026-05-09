@@ -209,6 +209,72 @@ def test_job_store_does_not_evict_processing_jobs():
     assert store.get("processing-job").status == "processing"
 
 
+async def test_batch_result_schema_matches_single(client):
+    """Batch drone results must have the same fields as single drone results."""
+    single_req = {
+        "trajectory": {
+            "lat": 48.0, "lon": 31.0, "altitude_m": 400,
+            "heading_deg": 0.0, "speed_m_s": 51.4,
+        },
+        "max_range_m": 3000,
+        "evaluation_spacing_m": 1000,
+    }
+    single_resp = await client.post("/analyze/single", json=single_req)
+    single_body = single_resp.json()
+
+    batch_resp = await client.post("/analyze/batch", json={
+        "drones": [single_req],
+    })
+    batch_body = batch_resp.json()
+    batch_drone = batch_body["results"][0]
+
+    single_keys = set(single_body["trajectory_scores"][0].keys())
+    batch_keys = set(batch_drone["trajectory_scores"][0].keys())
+    assert single_keys == batch_keys
+
+
+async def test_batch_trajectory_points_have_heading_and_speed(client):
+    """Each trajectory point score must include heading_deg and speed_m_s."""
+    resp = await client.post("/analyze/batch", json=SMALL_BATCH)
+    body = resp.json()
+    for result in body["results"]:
+        for pt in result["trajectory_scores"]:
+            assert "heading_deg" in pt
+            assert "speed_m_s" in pt
+            assert pt["speed_m_s"] == pytest.approx(51.4)
+
+
+async def test_batch_heading_values_match_input(client):
+    """Batch results should carry through the input heading for each drone."""
+    batch = {
+        "drones": [
+            {
+                "drone_id": "north",
+                "trajectory": {
+                    "lat": 48.0, "lon": 31.0, "altitude_m": 400,
+                    "heading_deg": 0.0, "speed_m_s": 51.4,
+                },
+                "max_range_m": 3000,
+                "evaluation_spacing_m": 1000,
+            },
+            {
+                "drone_id": "west",
+                "trajectory": {
+                    "lat": 48.0, "lon": 31.0, "altitude_m": 400,
+                    "heading_deg": 270.0, "speed_m_s": 51.4,
+                },
+                "max_range_m": 3000,
+                "evaluation_spacing_m": 1000,
+            },
+        ]
+    }
+    resp = await client.post("/analyze/batch", json=batch)
+    body = resp.json()
+    by_id = {r["drone_id"]: r for r in body["results"]}
+    assert by_id["north"]["trajectory_scores"][0]["heading_deg"] == pytest.approx(0.0)
+    assert by_id["west"]["trajectory_scores"][0]["heading_deg"] == pytest.approx(270.0)
+
+
 def test_job_store_eviction_on_create():
     """Eviction runs during create() as well."""
     store = JobStore(ttl_s=0.1)

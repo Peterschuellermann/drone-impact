@@ -31,6 +31,8 @@ class TrajectoryPointScore(BaseModel):
     lon: float
     altitude_m: float
     distance_from_current_m: float
+    heading_deg: float = 0.0
+    speed_m_s: float = 0.0
     expected_casualties: float
     engagement_score: float
     breakdown: dict[str, ModeBreakdown]

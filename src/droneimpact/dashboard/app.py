@@ -152,8 +152,8 @@ def _render_single_drone():
                         "lat": selected_pt["lat"],
                         "lon": selected_pt["lon"],
                         "altitude_m": selected_pt["altitude_m"],
-                        "heading_deg": heading_deg,
-                        "speed_m_s": speed_m_s,
+                        "heading_deg": selected_pt.get("heading_deg", heading_deg),
+                        "speed_m_s": selected_pt.get("speed_m_s", speed_m_s),
                     })
 
                     bounds = compute_fallout_bounds(
@@ -287,7 +287,79 @@ def _render_batch():
         ])
 
         with tab_map:
-            st_folium(make_trajectory_map(drone_result), width="stretch", height=500, returned_objects=[])
+            scores = drone_result["trajectory_scores"]
+            rec_idx = drone_result["recommended_engagement"]["point_index"]
+
+            batch_sel_key = f"batch_selected_point_{idx}"
+            if batch_sel_key not in st.session_state:
+                st.session_state[batch_sel_key] = rec_idx
+
+            selected_idx = st.session_state[batch_sel_key]
+
+            traj_map = make_trajectory_map(drone_result, selected_point_idx=selected_idx)
+            add_risk_zone_overlay(
+                traj_map,
+                scores,
+                drone_result.get("risk_zones", []),
+            )
+
+            st.caption("Click an evaluation point to inspect its fallout area.")
+            traj_data = st_folium(
+                traj_map,
+                width="stretch",
+                height=500,
+                returned_objects=["last_object_clicked_tooltip"],
+                key=f"batch_traj_map_{idx}",
+            )
+
+            clicked_tooltip = (traj_data or {}).get("last_object_clicked_tooltip")
+            clicked_idx = parse_point_index_from_tooltip(clicked_tooltip)
+            if clicked_idx is not None and clicked_idx != selected_idx:
+                st.session_state[batch_sel_key] = clicked_idx
+                st.rerun()
+
+            score_by_idx = {pt["point_index"]: pt for pt in scores}
+            selected_pt = score_by_idx.get(selected_idx)
+
+            if selected_pt:
+                pt_heading = selected_pt.get("heading_deg", 0.0)
+                pt_speed = selected_pt.get("speed_m_s", 51.4)
+                try:
+                    impact_data = call_point_impact_api({
+                        "lat": selected_pt["lat"],
+                        "lon": selected_pt["lon"],
+                        "altitude_m": selected_pt["altitude_m"],
+                        "heading_deg": pt_heading,
+                        "speed_m_s": pt_speed,
+                    })
+
+                    bounds = compute_fallout_bounds(
+                        selected_pt["lat"], selected_pt["lon"], impact_data,
+                    )
+                    fallout_map = make_coloured_trajectory(drone_result, zoom_bounds=bounds)
+                    add_risk_zone_overlay(
+                        fallout_map,
+                        scores,
+                        drone_result.get("risk_zones", []),
+                    )
+                    folium.CircleMarker(
+                        [selected_pt["lat"], selected_pt["lon"]],
+                        radius=10, color="#8b5cf6", fill=True,
+                        fill_opacity=1.0, weight=3,
+                        tooltip="Selected point",
+                    ).add_to(fallout_map)
+                    add_fallout_overlay(fallout_map, impact_data)
+                    st_folium(
+                        fallout_map,
+                        width="stretch",
+                        height=450,
+                        returned_objects=[],
+                        key=f"batch_fallout_map_{idx}",
+                    )
+
+                    st.markdown(make_point_detail_panel(selected_pt, impact_data))
+                except Exception as e:
+                    st.warning(f"Could not load point impact data: {e}")
 
         with tab_impact:
             st.plotly_chart(make_impact_scatter(drone_result), width="stretch")
@@ -297,6 +369,48 @@ def _render_batch():
 
         with tab_stats:
             st.markdown(make_stats_panel(drone_result))
+
+        st.divider()
+        st.download_button(
+            label=f"Export {selected} as GeoJSON",
+            data=export_geojson(drone_result),
+            file_name=f"droneimpact_{selected}.geojson",
+            mime="application/geo+json",
+            key=f"batch_export_{idx}",
+        )
+
+        st.divider()
+        st.subheader("Trajectory Replay")
+        first_pt = drone_result["trajectory_scores"][0] if drone_result["trajectory_scores"] else {}
+        replay_speed = first_pt.get("speed_m_s", 51.4)
+        frames = prepare_animation_frames(drone_result, replay_speed)
+
+        if frames:
+            n_frames = len(frames)
+            step = st.slider("Evaluation point", 0, n_frames - 1, 0, key=f"batch_replay_{idx}")
+            frame = frames[step]
+
+            col_map, col_stats = st.columns([2, 1])
+
+            with col_map:
+                coloured_map = make_coloured_trajectory(drone_result)
+                folium.CircleMarker(
+                    [frame["lat"], frame["lon"]],
+                    radius=10, color=frame["colour"], fill=True,
+                    fill_opacity=1.0, weight=3,
+                ).add_to(coloured_map)
+                st_folium(coloured_map, width="stretch", height=450, returned_objects=[],
+                          key=f"batch_replay_map_{idx}")
+
+            with col_stats:
+                if frame["is_recommended"]:
+                    st.success("RECOMMENDED ENGAGEMENT POINT")
+                st.metric("Position", f"{frame['lat']:.5f}, {frame['lon']:.5f}")
+                st.metric("Altitude", f"{frame['altitude_m']:.0f} m")
+                st.metric("Distance", f"{frame['distance_from_current_m'] / 1000:.1f} km")
+                st.metric("Expected Casualties", f"{frame['expected_casualties']:.4f}")
+                st.metric("Engagement Score", f"{frame['engagement_score']:.4f}")
+                st.caption(f"Point {step + 1} / {n_frames}")
 
     st.subheader("Compare")
     compare_ids = st.multiselect("Select 2-3 drones to compare", drone_ids, max_selections=3)

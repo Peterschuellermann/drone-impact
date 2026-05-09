@@ -34,7 +34,7 @@ Calls `POST /analyze/batch`. For >5 drones, uses async mode with polling (`GET /
 Displays:
 - **Batch map** — multi-drone trajectories with layer control, each drone in a distinct colour (20-colour palette)
 - **Priority table** — all drones ranked by expected casualties (descending)
-- **Drill-down** — select a single drone for its full detail view
+- **Drill-down** — select a single drone for its full detail view (trajectory map with risk zones, click-to-inspect fallout, GeoJSON export, trajectory replay)
 - **Compare** — multi-select up to 3 drones for side-by-side comparison
 
 ---

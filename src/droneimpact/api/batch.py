@@ -111,6 +111,7 @@ def _analyze_one_in_worker(drone_req_dict: dict) -> dict:
 # ── Execution ──────────────────────────────────────────────────────────────────
 
 def _analyze_one(drone_req: SingleDroneRequest, state, point_workers: int | None = None) -> dict:
+    t0 = time.perf_counter()
     sv = StateVector(
         lat=drone_req.trajectory.lat,
         lon=drone_req.trajectory.lon,
@@ -123,9 +124,12 @@ def _analyze_one(drone_req: SingleDroneRequest, state, point_workers: int | None
         spacing_m=drone_req.evaluation_spacing_m,
         max_range_m=drone_req.max_range_m,
     )
-    casualty_engine = CasualtyEngine(state.population, state.infrastructure, state.config.casualty)
+    casualty_engine = CasualtyEngine(
+        population=state.population,
+        infrastructure=state.infrastructure,
+        config=state.config.casualty,
+    )
     scoring_engine = ScoringEngine(config=state.config, max_point_workers=point_workers)
-    t0 = time.perf_counter()
     result = scoring_engine.score_trajectory(
         trajectory=trajectory,
         dem=state.dem,
