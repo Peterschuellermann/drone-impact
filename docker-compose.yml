@@ -11,10 +11,7 @@ services:
     environment:
       - DRONEIMPACT_HOST=0.0.0.0
       - DRONEIMPACT_PORT=8000
-    deploy:
-      resources:
-        limits:
-          memory: 8g
+    mem_limit: 8g
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
       interval: 10s
