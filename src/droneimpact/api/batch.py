@@ -130,6 +130,7 @@ def _analyze_one(drone_req: SingleDroneRequest, state, point_workers: int | None
         population=state.population,
         infrastructure=state.infrastructure,
         config=state.config.casualty,
+        buildings=state.buildings,
     )
     scoring_engine = ScoringEngine(config=state.config, max_point_workers=point_workers)
     n_samples = drone_req.n_monte_carlo_samples or state.config.physics.n_monte_carlo_samples

@@ -11,6 +11,7 @@ from fastapi import FastAPI
 
 from droneimpact.api.analyze import router as analyze_router
 from droneimpact.api.batch import JobStore, _init_batch_worker, router as batch_router
+from droneimpact.api.buildings import router as buildings_router
 from droneimpact.api.cache import ResultCache, compute_fingerprint
 from droneimpact.api.data import router as data_router
 from droneimpact.api.health import router as health_router
@@ -142,10 +143,11 @@ async def lifespan(app: FastAPI):
 
 
 def create_app() -> FastAPI:
-    app = FastAPI(title="DroneImpact", version="1.0.0", lifespan=lifespan)
+    app = FastAPI(title="DroneImpact", version="1.2.0", lifespan=lifespan)
     app.include_router(health_router)
     app.include_router(analyze_router)
     app.include_router(batch_router)
+    app.include_router(buildings_router)
     app.include_router(data_router)
     return app
 

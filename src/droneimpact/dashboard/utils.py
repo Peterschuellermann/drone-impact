@@ -94,6 +94,20 @@ def call_batch_api(
     raise TimeoutError(f"Batch {batch_id} did not complete within {timeout_s}s")
 
 
+def call_building_coverage(lat: float, lon: float, radius_km: float = 50.0) -> list[dict]:
+    endpoint = get_api_endpoint()
+    try:
+        response = httpx.get(
+            f"{endpoint}/buildings/coverage",
+            params={"lat": lat, "lon": lon, "radius_km": radius_km},
+            timeout=10.0,
+        )
+        response.raise_for_status()
+        return response.json().get("cells", [])
+    except Exception:
+        return []
+
+
 def format_casualties(num: float) -> str:
     if num < 0.01:
         return "< 0.01"

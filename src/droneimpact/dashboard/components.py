@@ -703,6 +703,48 @@ def add_risk_zone_overlay(
     return map_obj
 
 
+SHELTERING_COLOURS = {
+    "reinforced_concrete": "#1e40af",
+    "masonry": "#b45309",
+    "light_structure": "#65a30d",
+}
+
+SHELTERING_LABELS = {
+    "reinforced_concrete": "Reinforced Concrete",
+    "masonry": "Masonry",
+    "light_structure": "Light Structure",
+}
+
+
+def add_sheltering_overlay(
+    map_obj: folium.Map,
+    building_cells: list[dict],
+) -> folium.Map:
+    if not building_cells:
+        return map_obj
+
+    shelter_group = folium.FeatureGroup(name="Building Sheltering", show=False)
+
+    for cell in building_cells:
+        cls = cell["protection_class"]
+        colour = SHELTERING_COLOURS.get(cls, "#888888")
+        label = SHELTERING_LABELS.get(cls, cls)
+        boundary = cell["boundary"]
+        folium.Polygon(
+            locations=boundary,
+            color=colour,
+            fill=True,
+            fill_color=colour,
+            fill_opacity=0.35,
+            weight=1,
+            opacity=0.5,
+            tooltip=label,
+        ).add_to(shelter_group)
+
+    shelter_group.add_to(map_obj)
+    return map_obj
+
+
 def make_point_detail_panel(point_data: dict, impact_response: dict) -> str:
     """Generate markdown summary for a selected evaluation point."""
     dist_km = point_data.get("distance_from_current_m", 0) / 1000

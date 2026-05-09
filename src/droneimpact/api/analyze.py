@@ -85,6 +85,7 @@ def analyze_single(body: SingleDroneRequest, request: Request) -> SingleDroneRes
         population=state.population,
         infrastructure=state.infrastructure,
         config=state.config.casualty,
+        buildings=state.buildings,
     )
     scoring_engine = ScoringEngine(config=state.config)
 
@@ -132,6 +133,7 @@ def analyze_point_impact(body: PointImpactRequest, request: Request) -> PointImp
         population=state.population,
         infrastructure=state.infrastructure,
         config=state.config.casualty,
+        buildings=state.buildings,
     )
     scoring_engine = ScoringEngine(config=state.config)
     n_samples = body.n_monte_carlo_samples or state.config.physics.n_monte_carlo_samples
