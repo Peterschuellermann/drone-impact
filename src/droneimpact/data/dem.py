@@ -28,8 +28,12 @@ class DEMIndex:
 
     @classmethod
     def load_from_file(cls, path: str | Path) -> "DEMIndex":
-        dataset = rasterio.open(path)
-        return cls(None, dataset.transform, dataset.crs, dataset=dataset)
+        with rasterio.open(path) as dataset:
+            data = dataset.read(1)
+            nodata = dataset.nodata
+            if nodata is not None:
+                data = np.where(data == nodata, 0.0, data)
+            return cls(data, dataset.transform, dataset.crs)
 
     @classmethod
     def from_array(
