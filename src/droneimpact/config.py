@@ -25,6 +25,7 @@ class PhysicsConfig(BaseModel):
     shahed136: Shahed136Params
     m1_sigma_heading_deg: float
     m1_sigma_glide_ratio: float
+    m1_sigma_speed_m_s: float
     m2_sigma_init_deg: float
     m2_sigma_turn_deg_per_s: float
     m2_dt_s: float

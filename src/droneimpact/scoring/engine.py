@@ -96,7 +96,7 @@ class ScoringEngine:
         modes: list[tuple[str, float, callable, tuple]] = []
         if enable.propulsion_loss:
             modes.append(("propulsion_loss", w.propulsion_loss,
-                          simulate_m1, (agl, pt.heading_deg, n_samples, phys)))
+                          simulate_m1, (agl, pt.heading_deg, pt.speed_m_s, n_samples, phys)))
         if enable.loss_of_control:
             modes.append(("loss_of_control", w.loss_of_control,
                           simulate_m2, (agl, pt.heading_deg, pt.speed_m_s, n_samples, phys)))
@@ -162,7 +162,7 @@ class ScoringEngine:
         if cached is not None:
             return cached
 
-        miss_enu = simulate_m1(last_agl, last.heading_deg, n_samples, phys, rng=rng)
+        miss_enu = simulate_m1(last_agl, last.heading_deg, last.speed_m_s, n_samples, phys, rng=rng)
         miss_wgs84 = _enu_to_wgs84_fast(miss_enu, last.lat, last.lon)
         miss_casualties = casualty_engine.compute(miss_wgs84)
         self._miss_cache[key] = miss_casualties

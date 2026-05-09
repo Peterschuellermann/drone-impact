@@ -82,18 +82,22 @@ The engine stops. Control surfaces remain active; the autopilot (if still functi
 - Speed decays during glide due to drag; simplified to constant-speed glide (conservative)
 - No wind in v1
 
-**Deterministic glide range (horizontal):**
+**Energy-height glide range (horizontal):**
+
+The drone's kinetic energy converts to additional altitude equivalent, extending glide range at higher speeds:
 ```
-R_glide = altitude_AGL * (L/D) = altitude_AGL * 5
+energy_height = altitude_AGL + v² / (2g)
+R_glide = energy_height * (L/D)
 ```
 
-At 300 m AGL → 1,500 m range
-At 500 m AGL → 2,500 m range
+At 300 m AGL, v=51.4 m/s → energy_height ≈ 435 m → 2,175 m range
+At 500 m AGL, v=51.4 m/s → energy_height ≈ 635 m → 3,175 m range
+At 500 m AGL, v=0 m/s → energy_height = 500 m → 2,500 m range (altitude-only fallback)
 
 **Stochastic elements** (Monte Carlo perturbations per sample):
 - Heading perturbation: σ_heading ~ N(0, 5°) — control surfaces may be partially damaged
 - Glide ratio perturbation: σ_LoverD ~ N(5, 0.8) — structural damage affects aerodynamics
-- Speed at intercept: sampled from N(v_cruise, 5 m/s)
+- Speed at intercept: σ_speed ~ N(v_input, 5 m/s) — speed uncertainty at intercept moment
 
 **Impact point:**
 ```
