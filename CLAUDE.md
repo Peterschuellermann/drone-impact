@@ -1,12 +1,10 @@
 # DroneImpact — Development Workflow
 
-## Agent Roles
+## Task Tracking
 
-Two agent types operate in this repository:
+All remaining tasks and feature plans are tracked as GitHub issues at https://github.com/Peterschuellermann/drone-impact/issues. Issues are labelled by milestone (`v1.1c`, `v1.2`, `v1.3`, `v1.4`) and category (`physics`, `dashboard`, `performance`).
 
-**Planning Agent** — reads `/spec/roadmap.md` and the spec files, then writes feature plans in `/plans/`. Does not write implementation code or modify `src/`. When a new version is being planned, it reads the previous version's plans and spec to maintain continuity.
-
-**Implementation Agent** — reads one `[ ] pending` plan from `/plans/README.md`, implements it fully, tests it, and commits it to a feature branch. Does not plan new features or modify other plans. If the plan contains an error, it updates the plan AND the relevant spec file, then continues.
+**To pick up work:** check the GitHub issues for the next available task.
 
 ---
 
@@ -38,17 +36,16 @@ Multiple agents and people work in this repository simultaneously. Follow these 
 ## Feature Development Workflow
 
 1. **Pull latest:** `git pull origin main`
-2. **Pick a plan:** Read `/plans/README.md`. Take the first `[ ] pending` plan whose dependencies are all `[x] done`.
-3. **Worktree:** `git worktree add ../droneimpact-<plan-id> -b feature/<plan-id>-<short-name> main`
-4. **Implement:** Work in the worktree. Follow the plan step by step. Make atomic commits as you go.
+2. **Pick an issue:** Check GitHub issues for the next available task.
+3. **Worktree:** `git worktree add ../droneimpact-<id> -b feature/<id>-<short-name> main`
+4. **Implement:** Work in the worktree. Make atomic commits as you go.
 5. **Test:** Write unit and integration tests alongside or before code. All tests must pass before moving to the next step.
 6. **Verify:** Run `pytest` — zero failures required before merging.
 7. **Update spec:** If implementation differs from spec, update the relevant `/spec/` file.
-8. **Mark done:** Update plan status in `/plans/README.md` from `[ ]` to `[x]`.
-9. **Pull again:** `git pull origin main` — catch any changes pushed while you were working.
-10. **Merge:** From the main working directory: `git merge --squash feature/<plan-id>-<short-name>` then commit with message `feat(<id>): <plan title>`.
-11. **Push:** `git push origin main` — push immediately after the squash merge.
-12. **Cleanup:** `git worktree remove ../droneimpact-<plan-id>` and `git branch -d feature/<plan-id>-<short-name>`.
+8. **Pull again:** `git pull origin main` — catch any changes pushed while you were working.
+9. **Merge:** From the main working directory: `git merge --squash feature/<id>-<short-name>` then commit with message `feat(<id>): <title>`.
+10. **Push:** `git push origin main` — push immediately after the squash merge.
+11. **Cleanup:** `git worktree remove ../droneimpact-<id>` and `git branch -d feature/<id>-<short-name>`.
 
 ---
 
@@ -81,19 +78,6 @@ Keep commit messages factual. Do not narrate intent — the diff shows what chan
 
 ---
 
-## Plans
-
-All feature plans live in `/plans/`. Each is a single markdown file.
-
-**Plan status in README:**
-- `[ ]` pending — not started
-- `[~]` in progress — branch open, implementation underway
-- `[x]` done — merged to main, tests pass
-
-**To pick up work:** open `/plans/README.md`, find the first `[ ]` plan with all dependencies marked `[x]`, read the full plan file, implement it.
-
----
-
 ## Spec
 
 The `/spec/` directory is the living design document. Keep it accurate:
@@ -122,7 +106,6 @@ droneimpact/
 │   ├── integration/        # component interaction tests
 │   ├── performance/        # latency budget assertions
 │   └── fixtures/           # small synthetic data files for tests
-├── plans/                  # feature plans (planning agent writes here)
 ├── spec/                   # living system specification
 ├── data/                   # runtime data files — gitignored, populated separately
 ├── config.yaml             # default runtime configuration
