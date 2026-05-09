@@ -19,6 +19,7 @@ from droneimpact.api.schemas import (
     PointImpactModeResult,
     PointImpactRequest,
     PointImpactResponse,
+    RankedEngagementSchema,
     RecommendedEngagementSchema,
     RiskZoneSchema,
     SingleDroneRequest,
@@ -191,6 +192,21 @@ def _build_response(
         reasoning=rec.reasoning,
     )
 
+    ranked_engagements = [
+        RankedEngagementSchema(
+            rank=re.rank,
+            point_index=re.point_index,
+            lat=re.lat,
+            lon=re.lon,
+            altitude_m=re.altitude_m,
+            distance_from_current_m=re.distance_from_current_m,
+            expected_casualties=re.expected_casualties,
+            engagement_score=re.engagement_score,
+            reasoning=re.reasoning,
+        )
+        for re in result.ranked_engagements
+    ]
+
     scores = [
         TrajectoryPointScore(
             point_index=ps.point_index,
@@ -282,6 +298,7 @@ def _build_response(
         drone_id=req.drone_id,
         computed_at_utc=datetime.now(timezone.utc).isoformat(),
         recommended_engagement=recommended,
+        ranked_engagements=ranked_engagements,
         trajectory_scores=scores,
         impact_distributions=dists,
         metadata=MetadataSchema(

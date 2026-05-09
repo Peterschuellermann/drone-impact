@@ -70,10 +70,13 @@ class ResultCache:
         if not self._dir.exists():
             return 0
         pruned = 0
-        for f in self._dir.glob("*.json"):
-            if not f.name.startswith(self._fingerprint + "_"):
-                f.unlink()
-                pruned += 1
+        try:
+            for f in self._dir.glob("*.json"):
+                if not f.name.startswith(self._fingerprint + "_"):
+                    f.unlink()
+                    pruned += 1
+        except OSError:
+            logger.warning("Cannot prune cache — directory may be read-only")
         return pruned
 
     def get(self, request_hash: str) -> dict | None:
@@ -92,10 +95,14 @@ class ResultCache:
     def put(self, request_hash: str, response: dict) -> None:
         if not self._enabled:
             return
-        self._dir.mkdir(parents=True, exist_ok=True)
-        self._evict_if_full()
-        path = self._dir / f"{self._fingerprint}_{request_hash}.json"
-        path.write_text(json.dumps(response))
+        try:
+            self._dir.mkdir(parents=True, exist_ok=True)
+            self._evict_if_full()
+            path = self._dir / f"{self._fingerprint}_{request_hash}.json"
+            path.write_text(json.dumps(response))
+        except OSError:
+            logger.warning("Cannot write cache entry — directory may be read-only")
+            self._enabled = False
 
     def _evict_if_full(self) -> None:
         entries = sorted(self._dir.glob("*.json"), key=lambda p: p.stat().st_mtime)

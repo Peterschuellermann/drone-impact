@@ -24,7 +24,7 @@ def test_all_samples_terminate(config):
 
 def test_m3_tighter_footprint_than_m1(config):
     n = 5000
-    m1 = simulate_m1(400.0, 0.0, n, config.physics, rng=np.random.default_rng(42))
+    m1 = simulate_m1(400.0, 0.0, 51.4, n, config.physics, rng=np.random.default_rng(42))
     m3 = simulate_m3(400.0, 0.0, 51.4, n, config.physics, rng=np.random.default_rng(42))
     m1_spread = float(np.std(np.sqrt((m1 ** 2).sum(axis=1))))
     m3_spread = float(np.std(np.sqrt((m3 ** 2).sum(axis=1))))

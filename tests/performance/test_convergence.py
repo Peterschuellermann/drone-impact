@@ -25,7 +25,7 @@ def casualty_engine_convergence(config):
 
 def _compute_expected_casualties(n: int, config, casualty_engine) -> float:
     rng = np.random.default_rng(42)
-    enu = simulate_m1(400.0, 0.0, n, config.physics, rng=rng)
+    enu = simulate_m1(400.0, 0.0, 51.4, n, config.physics, rng=rng)
     wgs84 = enu_to_wgs84_batch(enu, *ORIGIN)
     pts = np.column_stack([wgs84[:, 0], wgs84[:, 1]])
     return casualty_engine.compute(pts)
@@ -59,16 +59,17 @@ def test_monte_carlo_convergence(config, casualty_engine_convergence):
 
 def test_m1_distribution_non_degenerate(config):
     """Impact distribution has non-zero spread (not all points at same location)."""
-    enu = simulate_m1(400.0, 45.0, 1000, config.physics, rng=np.random.default_rng(7))
+    enu = simulate_m1(400.0, 45.0, 51.4, 1000, config.physics, rng=np.random.default_rng(7))
     spread = np.std(np.sqrt((enu ** 2).sum(axis=1)))
     assert spread > 10.0, f"M1 spread too small: {spread:.1f} m (expected > 10 m)"
 
 
 def test_zero_altitude_near_zero_range(config):
-    """Near-zero AGL altitude → near-zero impact range for M1."""
-    enu = simulate_m1(1.0, 0.0, 1000, config.physics, rng=np.random.default_rng(0))
+    """Near-zero AGL altitude and zero speed → near-zero impact range for M1."""
+    cfg = config.physics.model_copy(update={"m1_sigma_speed_m_s": 0.0})
+    enu = simulate_m1(1.0, 0.0, 0.0, 1000, cfg, rng=np.random.default_rng(0))
     mean_range = float(np.sqrt((enu ** 2).sum(axis=1)).mean())
-    expected_max = 1.0 * config.physics.shahed136.glide_ratio * 3  # 3x mean as generous bound
+    expected_max = 1.0 * config.physics.shahed136.glide_ratio * 3
     assert mean_range < expected_max, (
         f"M1 range at 1m AGL too large: {mean_range:.1f} m (expected < {expected_max:.1f} m)"
     )

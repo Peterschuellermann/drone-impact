@@ -14,7 +14,7 @@ class DEMOutOfBoundsError(ValueError):
 
 class DEMIndex:
     def __init__(self, data: np.ndarray | None, transform, crs=None, dataset=None):
-        self._data = data.astype(np.float32) if data is not None else None
+        self._data = np.ascontiguousarray(data) if data is not None else None
         self._dataset = dataset
         self._nodata: float | None = None
         self._transform = transform
@@ -26,10 +26,31 @@ class DEMIndex:
             self._cols = dataset.width
             self._nodata = dataset.nodata
 
+    def __getstate__(self):
+        state = self.__dict__.copy()
+        if self._dataset is not None:
+            state["_dataset_path"] = self._dataset.name
+            state["_dataset"] = None
+        else:
+            state["_dataset_path"] = None
+        return state
+
+    def __setstate__(self, state):
+        path = state.pop("_dataset_path")
+        self.__dict__.update(state)
+        if path is not None:
+            self._dataset = rasterio.open(path)
+            self._nodata = self._dataset.nodata
+
     @classmethod
     def load_from_file(cls, path: str | Path) -> "DEMIndex":
-        dataset = rasterio.open(path)
-        return cls(None, dataset.transform, dataset.crs, dataset=dataset)
+        with rasterio.open(path) as dataset:
+            data = dataset.read(1)
+            nodata = dataset.nodata
+            if nodata is not None and np.any(data == nodata):
+                data = data.copy()
+                data[data == nodata] = 0
+            return cls(data, dataset.transform, dataset.crs)
 
     @classmethod
     def from_array(

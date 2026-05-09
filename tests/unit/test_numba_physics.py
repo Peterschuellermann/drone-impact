@@ -18,13 +18,19 @@ from droneimpact.physics.warmup import warmup_jit
 # Reference implementations (pre-Numba pure Python/NumPy)
 # ---------------------------------------------------------------------------
 
-def _simulate_m1_reference(altitude_agl_m, heading_deg, n_samples, config, rng):
+_G = 9.81
+
+
+def _simulate_m1_reference(altitude_agl_m, heading_deg, speed_m_s, n_samples, config, rng):
     heading_samples = rng.normal(heading_deg, config.m1_sigma_heading_deg, n_samples)
     glide_samples = rng.normal(
         config.shahed136.glide_ratio, config.m1_sigma_glide_ratio, n_samples
     )
+    speed_samples = rng.normal(speed_m_s, config.m1_sigma_speed_m_s, n_samples)
     glide_samples = np.maximum(glide_samples, 0.5)
-    range_samples = altitude_agl_m * glide_samples
+    speed_samples = np.maximum(speed_samples, 0.0)
+    energy_height = altitude_agl_m + (speed_samples ** 2) / (2.0 * _G)
+    range_samples = energy_height * glide_samples
     heading_rad = np.radians(heading_samples)
     east = range_samples * np.sin(heading_rad)
     north = range_samples * np.cos(heading_rad)
@@ -87,8 +93,8 @@ def _simulate_m3_reference(altitude_agl_m, heading_deg, speed_m_s, n_samples, co
 class TestM1Equivalence:
     def test_numba_matches_reference(self, config):
         n = 1000
-        ref = _simulate_m1_reference(400.0, 45.0, n, config.physics, np.random.default_rng(42))
-        new = simulate_m1(400.0, 45.0, n, config.physics, rng=np.random.default_rng(42))
+        ref = _simulate_m1_reference(400.0, 45.0, 51.4, n, config.physics, np.random.default_rng(42))
+        new = simulate_m1(400.0, 45.0, 51.4, n, config.physics, rng=np.random.default_rng(42))
         np.testing.assert_allclose(new, ref, atol=1e-10)
 
     def test_numba_matches_reference_high_variance(self, config):
@@ -97,8 +103,8 @@ class TestM1Equivalence:
             "m1_sigma_glide_ratio": 3.0,
         })
         n = 2000
-        ref = _simulate_m1_reference(200.0, 270.0, n, cfg, np.random.default_rng(99))
-        new = simulate_m1(200.0, 270.0, n, cfg, rng=np.random.default_rng(99))
+        ref = _simulate_m1_reference(200.0, 270.0, 51.4, n, cfg, np.random.default_rng(99))
+        new = simulate_m1(200.0, 270.0, 51.4, n, cfg, rng=np.random.default_rng(99))
         np.testing.assert_allclose(new, ref, atol=1e-10)
 
 

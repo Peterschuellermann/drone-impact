@@ -18,11 +18,20 @@ def get_api_endpoint() -> str:
     return "http://localhost:8000"
 
 
-def call_api(drone_state: dict) -> dict:
+def call_api(
+    drone_state: dict,
+    evaluation_spacing_m: int | None = None,
+    max_range_m: int | None = None,
+) -> dict:
     endpoint = get_api_endpoint()
+    body: dict = {"trajectory": drone_state}
+    if evaluation_spacing_m is not None:
+        body["evaluation_spacing_m"] = evaluation_spacing_m
+    if max_range_m is not None:
+        body["max_range_m"] = max_range_m
     response = httpx.post(
         f"{endpoint}/analyze/single",
-        json={"trajectory": drone_state},
+        json=body,
         timeout=120.0,
     )
     response.raise_for_status()

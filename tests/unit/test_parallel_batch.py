@@ -61,7 +61,7 @@ class TestBatchSequentialVsParallel:
         assert seq_result["status"] == "complete"
         assert len(seq_result["results"]) == 3
 
-        ctx = mp.get_context("fork")
+        ctx = mp.get_context("spawn")
         executor = ProcessPoolExecutor(
             max_workers=2, mp_context=ctx,
             initializer=_init_batch_worker, initargs=(state,),
@@ -124,7 +124,7 @@ class TestBatchBelowThreshold:
         drones = [_make_drone_req(lat=48.1 + i * 0.01, drone_id=f"d-{i}") for i in range(3)]
         batch_req = BatchRequest(drones=drones)
 
-        ctx = mp.get_context("fork")
+        ctx = mp.get_context("spawn")
         executor = ProcessPoolExecutor(
             max_workers=2, mp_context=ctx,
             initializer=_init_batch_worker, initargs=(state,),

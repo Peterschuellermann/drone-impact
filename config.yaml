@@ -15,6 +15,7 @@ physics:
     fragment_mass_std_kg: 10.0
   m1_sigma_heading_deg: 5.0
   m1_sigma_glide_ratio: 0.8
+  m1_sigma_speed_m_s: 5.0
   m2_sigma_init_deg: 30.0
   m2_sigma_turn_deg_per_s: 15.0
   m2_dt_s: 1.0
@@ -86,13 +87,13 @@ scoring:
 
 parallelism:
   point_workers: 0    # per-point thread parallelism; 0 = auto (Numba releases GIL)
-  batch_workers: 0    # per-drone process parallelism; 0 = auto (cpu_count)
+  batch_workers: 0    # per-drone process parallelism; 0 = auto; fork context shares memory via COW
   batch_parallel_threshold: 2
 
 cache:
   enabled: true
   max_entries: 50
-  directory: "data/cache"
+  directory: ".cache/results"
 
 data:
   population_path: "./data/kontur_ukraine.gpkg"
