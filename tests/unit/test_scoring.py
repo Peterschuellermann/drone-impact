@@ -370,6 +370,27 @@ def test_interpolation_still_fills_populated_gaps():
         )
 
 
+def test_interpolation_propagates_hit_branch_expected_casualties():
+    """Interpolated gap points must have hit_branch_expected_casualties set."""
+    traj = _make_trajectory(5)
+    scored = {
+        0: _make_point_score(traj[0], 10.0),
+        4: _make_point_score(traj[4], 20.0),
+    }
+    scored[0].hit_branch_expected_casualties = 2.0
+    scored[4].hit_branch_expected_casualties = 6.0
+    point_scores = _make_full_point_scores(traj, scored)
+
+    pop = np.array([100.0, 80.0, 60.0, 40.0, 100.0], dtype=np.float32)
+    result = ScoringEngine._interpolate_gaps(traj, point_scores, scored, pop, 0.0)
+
+    for i in [1, 2, 3]:
+        assert result[i].hit_branch_expected_casualties > 0.0, (
+            f"Point {i} should have interpolated hit_branch_expected_casualties"
+        )
+    assert result[2].hit_branch_expected_casualties == pytest.approx(4.0)
+
+
 class TestCityBoundarySharpness:
     """End-to-end test: scores should not plateau beyond actual population extent."""
 
