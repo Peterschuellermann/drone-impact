@@ -24,6 +24,7 @@ from droneimpact.dashboard.utils import (
     call_batch_api,
     call_point_impact_api,
     export_geojson,
+    get_dashboard_config,
     load_scenarios,
 )
 
@@ -34,6 +35,7 @@ page = st.sidebar.radio("Mode", ["Single Drone", "Batch Analysis"])
 
 def _render_single_drone():
     st.title("DroneImpact — Single Drone Analysis")
+    dash_cfg = get_dashboard_config()
 
     scenarios = load_scenarios()
     scenario_names = [s["name"] for s in scenarios] + ["Custom"]
@@ -68,7 +70,7 @@ def _render_single_drone():
             default_alt = 500.0
             default_hdg = 270.0
             default_spd = 51.4
-            default_range_km = 250
+            default_range_km = dash_cfg.default_max_range_m // 1000
 
         st.divider()
         st.header("Drone State")
@@ -80,12 +82,12 @@ def _render_single_drone():
 
         st.divider()
         st.subheader("Analysis Parameters")
-        evaluation_spacing_m = st.slider("Evaluation spacing (m)", 100, 5000, 500, step=100)
+        evaluation_spacing_m = st.slider("Evaluation spacing (m)", 100, 5000, dash_cfg.default_evaluation_spacing_m, step=100)
         max_range_m = st.slider("Max range (km)", 1, 500, default_range_km) * 1000
 
         analyze_btn = st.button("Analyze", type="primary", width="stretch") or auto_submit
 
-    @st.cache_data(ttl=300, show_spinner=False)
+    @st.cache_data(ttl=dash_cfg.cache_ttl_sec, show_spinner=False)
     def _cached_api_call(lat, lon, altitude_m, heading_deg, speed_m_s, spacing, range_m):
         return call_api(
             {"lat": lat, "lon": lon, "altitude_m": altitude_m,

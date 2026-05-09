@@ -162,6 +162,13 @@ class CacheConfig(BaseModel):
     directory: str = "data/cache"
 
 
+class DashboardConfig(BaseModel):
+    api_endpoint: str = "http://localhost:8000"
+    default_max_range_m: int = 250_000
+    default_evaluation_spacing_m: int = 500
+    cache_ttl_sec: int = 300
+
+
 class AppConfig(BaseModel):
     model_config = {"extra": "ignore"}
 
@@ -173,6 +180,7 @@ class AppConfig(BaseModel):
     scenarios: list[ScenarioConfig] = []
     parallelism: ParallelismConfig = ParallelismConfig()
     cache: CacheConfig = CacheConfig()
+    dashboard: DashboardConfig = DashboardConfig()
 
 
 def load_config(path: str | Path = "config.yaml") -> AppConfig:
