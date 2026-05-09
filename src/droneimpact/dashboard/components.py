@@ -167,7 +167,6 @@ def make_trajectory_map(
     trajectory_group.add_to(m)
     eval_group.add_to(m)
     impact_group.add_to(m)
-    folium.LayerControl().add_to(m)
 
     if coords:
         m.fit_bounds(
@@ -406,8 +405,6 @@ def make_batch_map(batch_result: dict) -> folium.Map:
         ).add_to(group)
 
         group.add_to(m)
-
-    folium.LayerControl().add_to(m)
 
     if all_lats:
         m.fit_bounds([
