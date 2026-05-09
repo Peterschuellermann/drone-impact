@@ -10,7 +10,7 @@ A Streamlit web application providing interactive visualization of drone engagem
 
 ### Single Drone
 
-Sidebar inputs: latitude, longitude, altitude (MSL), heading, speed, evaluation spacing, max range, Monte Carlo sample count (100–5000). Calls `POST /analyze/single` and displays results in four tabs:
+Sidebar inputs: latitude, longitude, altitude (MSL), heading, speed, evaluation spacing, max range. Calls `POST /analyze/single` and displays results in four tabs:
 
 | Tab | Content |
 |---|---|
@@ -27,7 +27,7 @@ GeoJSON export is available — outputs trajectory line and evaluation points as
 
 ### Batch Analysis
 
-Sidebar includes a Monte Carlo sample count slider (100–5000, default 2000) applied to all drones in the batch. Input via manual form (1–5 drones) or CSV upload (up to 100 drones). Required CSV columns: `lat`, `lon`, `altitude_m`, `heading_deg`, `speed_m_s`. Optional: `drone_id`.
+Input via manual form (1–5 drones) or CSV upload (up to 100 drones). Required CSV columns: `lat`, `lon`, `altitude_m`, `heading_deg`, `speed_m_s`. Optional: `drone_id`.
 
 Calls `POST /analyze/batch`. For >5 drones, uses async mode with polling (`GET /analyze/batch/{batch_id}` every 2 seconds, 120s timeout).
 

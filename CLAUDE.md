@@ -12,19 +12,19 @@ All remaining tasks and feature plans are tracked as GitHub issues at https://gi
 
 Multiple agents and people work in this repository simultaneously. Follow these rules to avoid conflicts:
 
-### Branching Model
+### Gitflow Workflow
 
-Two long-lived branches:
+This repository uses [Gitflow](https://www.atlassian.com/git/tutorials/comparing-workflows/gitflow-workflow). Two long-lived branches:
 
-- **`main`** — production-ready code. Only updated by merging `develop` when ready to release, tagged with a semver version. No direct commits.
-- **`develop`** — integration branch. All feature and fix work merges here first.
+- **`main`** — production-ready code. Every merge is tagged with a semver version. No direct commits.
+- **`develop`** — integration branch for the next release. All feature work merges here.
 
 Branch types and flow:
 
 | Type | Naming | Branches from | Merges into |
 |---|---|---|---|
 | Feature | `feature/<name>` | `develop` | `develop` |
-| Fix | `fix/<name>` | `develop` | `develop` |
+| Release | `release/<version>` | `develop` | `main` (tagged) AND `develop` |
 | Hotfix | `hotfix/<name>` | `main` | `main` (tagged) AND `develop` |
 
 Rules:
@@ -33,16 +33,6 @@ Rules:
 - **Tag every merge into `main`** with the release version (e.g., `1.2.0`).
 - **Pull before branching:** `git pull origin develop` (or `main` for hotfixes).
 - If you've been working for a while, pull again before merging to catch changes others have pushed.
-
-### Multi-Agent Concurrency with Worktrees
-
-All worktrees share the same `.git` directory and remote refs. This means:
-
-- **Each agent works on its own `feature/*` or `fix/*` branch** in an isolated worktree. Agents do not need to track `develop` while working — they branched from it at creation time.
-- **When an agent finishes**, it merges `--no-ff` into `develop` and pushes. This is the only moment `develop` is modified.
-- **Other agents are not affected** — they continue working on their own branches. They do not need to pull or rebase during active work.
-- **Conflicts are resolved at merge time.** If two agents modified the same files, the second agent to merge into `develop` resolves conflicts then — not before.
-- **Never commit directly on `main` or `develop`** in any worktree. Always use a feature/fix branch.
 
 ### Git Worktrees
 
@@ -68,24 +58,25 @@ All worktrees share the same `.git` directory and remote refs. This means:
 10. **Push:** `git push origin develop` — push immediately after merge.
 11. **Cleanup:** `git worktree remove ../droneimpact-<id>` and `git branch -d feature/<id>-<short-name>`.
 
-## Promoting to Main
+## Release Workflow
 
-When `develop` is stable and ready for release:
-
-1. `git checkout main && git pull origin main`
-2. `git merge --no-ff develop`
-3. `git tag <version>`
-4. `git push origin main --tags`
+1. **Branch:** `git checkout -b release/<version> develop`
+2. **Stabilise:** Only bug fixes, docs, and release prep. No new features.
+3. **Merge to main:** `git checkout main && git merge --no-ff release/<version>`
+4. **Tag:** `git tag <version>`
+5. **Merge back to develop:** `git checkout develop && git merge --no-ff release/<version>`
+6. **Push:** `git push origin main develop --tags`
+7. **Cleanup:** `git branch -d release/<version>`
 
 ## Hotfix Workflow
 
-For urgent production fixes only:
-
-1. **Branch:** `git worktree add ../droneimpact-hotfix -b hotfix/<name> main`
+1. **Branch:** `git checkout -b hotfix/<name> main`
 2. **Fix and test.**
-3. **Merge to main:** `git checkout main && git merge --no-ff hotfix/<name>` then tag and push.
-4. **Merge to develop:** `git checkout develop && git merge --no-ff hotfix/<name>` then push.
-5. **Cleanup:** `git worktree remove ../droneimpact-hotfix && git branch -d hotfix/<name>`
+3. **Merge to main:** `git checkout main && git merge --no-ff hotfix/<name>`
+4. **Tag:** `git tag <version>`
+5. **Merge to develop:** `git checkout develop && git merge --no-ff hotfix/<name>`
+6. **Push:** `git push origin main develop --tags`
+7. **Cleanup:** `git branch -d hotfix/<name>`
 
 ---
 

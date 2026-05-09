@@ -4,7 +4,7 @@ import folium
 import pytest
 
 from droneimpact.dashboard.batch_input import parse_csv
-from droneimpact.dashboard.components import make_batch_map, make_drone_overview_map, make_priority_table
+from droneimpact.dashboard.components import make_batch_map, make_priority_table
 
 
 def _make_drone_result(drone_id: str, lat: float, lon: float, casualties: float) -> dict:
@@ -158,66 +158,3 @@ class TestCsvParsing:
         drones, errors = parse_csv(text)
         assert len(drones) == 1
         assert drones[0]["drone_id"] == "drone-1"
-
-
-def _make_input_drone(drone_id: str, lat: float, lon: float) -> dict:
-    return {
-        "drone_id": drone_id,
-        "trajectory": {
-            "lat": lat, "lon": lon, "altitude_m": 400.0,
-            "heading_deg": 230.0, "speed_m_s": 51.4,
-        },
-    }
-
-
-class TestDroneOverviewMap:
-    def test_returns_folium_map(self):
-        drones = [_make_input_drone("d1", 52.0, 33.5)]
-        m = make_drone_overview_map(drones)
-        assert isinstance(m, folium.Map)
-
-    def test_empty_drones(self):
-        m = make_drone_overview_map([])
-        assert isinstance(m, folium.Map)
-
-    def test_drone_labels_in_html(self):
-        drones = [
-            _make_input_drone("alpha", 52.0, 33.5),
-            _make_input_drone("bravo", 51.8, 33.8),
-        ]
-        m = make_drone_overview_map(drones)
-        html = m._repr_html_()
-        assert "alpha" in html
-        assert "bravo" in html
-
-    def test_selected_drone_bold(self):
-        drones = [
-            _make_input_drone("alpha", 52.0, 33.5),
-            _make_input_drone("bravo", 51.8, 33.8),
-        ]
-        m = make_drone_overview_map(drones, selected_idx=0)
-        html = m._repr_html_()
-        assert "bold" in html
-
-    def test_multiple_drones(self):
-        drones = [_make_input_drone(f"d{i}", 50 + i * 0.1, 33.0) for i in range(10)]
-        m = make_drone_overview_map(drones)
-        assert isinstance(m, folium.Map)
-
-    def test_tooltips_contain_parameters(self):
-        drones = [_make_input_drone("test-drone", 52.0, 33.5)]
-        m = make_drone_overview_map(drones)
-        html = m._repr_html_()
-        assert "test-drone" in html
-        assert "400" in html
-        assert "230" in html
-
-
-class TestBatchMapSelection:
-    def test_selected_drone_renders(self, batch_result_3):
-        m = make_batch_map(batch_result_3, selected_drone_idx=1)
-        assert isinstance(m, folium.Map)
-
-    def test_none_selection_works(self, batch_result_3):
-        m = make_batch_map(batch_result_3, selected_drone_idx=None)
-        assert isinstance(m, folium.Map)

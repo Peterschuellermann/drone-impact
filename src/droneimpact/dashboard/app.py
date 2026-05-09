@@ -8,11 +8,8 @@ from droneimpact.dashboard.batch_input import render_batch_input
 from droneimpact.dashboard.components import (
     add_fallout_overlay,
     add_risk_zone_overlay,
-    add_sheltering_overlay,
-    add_strike_overlay,
     make_batch_map,
     make_coloured_trajectory,
-    make_drone_overview_map,
     make_impact_scatter,
     make_point_detail_panel,
     make_priority_table,
@@ -25,9 +22,7 @@ from droneimpact.dashboard.components import (
 from droneimpact.dashboard.utils import (
     call_api,
     call_batch_api,
-    call_building_coverage,
     call_point_impact_api,
-    call_strikes_api,
     export_geojson,
     load_scenarios,
 )
@@ -87,22 +82,14 @@ def _render_single_drone():
         st.subheader("Analysis Parameters")
         evaluation_spacing_m = st.slider("Evaluation spacing (m)", 100, 5000, 500, step=100)
         max_range_m = st.slider("Max range (km)", 1, 500, default_range_km) * 1000
-        n_mc_samples = st.slider("Monte Carlo samples", 100, 5000, 2000, step=100)
-        if n_mc_samples > 3000:
-            st.caption("⚠ High sample counts may exceed the 500 ms latency budget.")
-
-        st.divider()
-        st.subheader("Map Layers")
-        show_strikes = st.checkbox("Strike locations", value=False)
 
         analyze_btn = st.button("Analyze", type="primary", width="stretch") or auto_submit
 
     @st.cache_data(ttl=300, show_spinner=False)
-    def _cached_api_call(lat, lon, altitude_m, heading_deg, speed_m_s, spacing, range_m, n_mc):
+    def _cached_api_call(lat, lon, altitude_m, heading_deg, speed_m_s, spacing, range_m):
         return call_api(
             {"lat": lat, "lon": lon, "altitude_m": altitude_m,
              "heading_deg": heading_deg, "speed_m_s": speed_m_s},
-            n_monte_carlo_samples=n_mc,
             evaluation_spacing_m=spacing,
             max_range_m=range_m,
         )
@@ -112,7 +99,7 @@ def _render_single_drone():
             try:
                 result = _cached_api_call(
                     lat, lon, altitude_m, heading_deg, speed_m_s,
-                    evaluation_spacing_m, max_range_m, n_mc_samples,
+                    evaluation_spacing_m, max_range_m,
                 )
                 st.session_state["result"] = result
             except Exception as e:
@@ -144,22 +131,6 @@ def _render_single_drone():
                 scores,
                 result.get("risk_zones", []),
             )
-
-            mid_pt = scores[len(scores) // 2] if scores else rec
-            building_cells = call_building_coverage(mid_pt["lat"], mid_pt["lon"])
-            add_sheltering_overlay(traj_map, building_cells)
-
-            if show_strikes and scores:
-                s_lats = [pt["lat"] for pt in scores]
-                s_lons = [pt["lon"] for pt in scores]
-                strikes_fc = call_strikes_api(
-                    south=min(s_lats) - 0.5,
-                    west=min(s_lons) - 0.5,
-                    north=max(s_lats) + 0.5,
-                    east=max(s_lons) + 0.5,
-                )
-                if strikes_fc:
-                    add_strike_overlay(traj_map, strikes_fc)
 
             # Add ranked interception point markers (ranks 2-5; rank 1 is the red star)
             _ranked_marker_colors = {
@@ -206,7 +177,6 @@ def _render_single_drone():
                         "altitude_m": selected_pt["altitude_m"],
                         "heading_deg": selected_pt.get("heading_deg", heading_deg),
                         "speed_m_s": selected_pt.get("speed_m_s", speed_m_s),
-                        "n_monte_carlo_samples": n_mc_samples,
                     })
                     add_fallout_overlay(traj_map, impact_data)
                 except Exception as e:
@@ -298,47 +268,19 @@ def _render_batch():
     st.title("DroneImpact — Batch Analysis")
 
     with st.sidebar:
-        n_mc_samples_batch = st.slider("Monte Carlo samples", 100, 5000, 2000, step=100,
-                                       key="batch_n_mc_samples")
-        if n_mc_samples_batch > 3000:
-            st.caption("⚠ High sample counts may exceed the 500 ms latency budget.")
         drones = render_batch_input()
 
     if drones is not None:
-        drones_with_mc = [
-            {**d, "n_monte_carlo_samples": n_mc_samples_batch} for d in drones
-        ]
         with st.spinner(f"Analysing {len(drones)} drones..."):
             try:
-                batch_result = call_batch_api(drones_with_mc)
+                batch_result = call_batch_api(drones)
                 st.session_state["batch_result"] = batch_result
             except Exception as e:
                 st.error(f"Batch API error: {e}")
                 st.stop()
 
     if "batch_result" not in st.session_state:
-        scenario_drones = st.session_state.get("scenario_drones")
-        if scenario_drones:
-            st.subheader("Scenario Overview")
-            drone_table = []
-            for i, d in enumerate(scenario_drones):
-                drone_table.append({
-                    "Drone": d["drone_id"],
-                    "Lat": f"{d['lat']:.4f}",
-                    "Lon": f"{d['lon']:.4f}",
-                    "Alt (m)": f"{d['altitude_m']:.0f}",
-                    "Heading": f"{d['heading_deg']:.0f}°",
-                    "Speed (m/s)": f"{d['speed_m_s']:.1f}",
-                })
-            st.dataframe(drone_table, use_container_width=True, hide_index=True)
-
-            overview_drones = [
-                {"drone_id": d["drone_id"], "trajectory": d} for d in scenario_drones
-            ]
-            overview_map = make_drone_overview_map(overview_drones)
-            st_folium(overview_map, width="stretch", height=400, returned_objects=[], key="overview_map")
-        else:
-            st.info("Configure drones in the sidebar and click **Analyze Batch**.")
+        st.info("Configure drones in the sidebar and click **Analyze Batch**.")
         return
 
     batch_result = st.session_state["batch_result"]
@@ -354,19 +296,15 @@ def _render_batch():
         st.error("All drones failed. Check the API and retry.")
         return
 
-    st.subheader("Drill-Down")
-    drone_ids = [r.get("drone_id") or f"Drone {i + 1}" for i, r in enumerate(results)]
-    selected = st.selectbox("Select drone for detail view", drone_ids)
-    selected_drone_idx = drone_ids.index(selected) if selected else None
-
-    st_folium(
-        make_batch_map(batch_result, selected_drone_idx=selected_drone_idx),
-        use_container_width=True, height=500, returned_objects=[],
-    )
+    st_folium(make_batch_map(batch_result), use_container_width=True, height=500, returned_objects=[])
 
     st.subheader("Priority Ranking")
     rows = make_priority_table(batch_result)
     st.dataframe(rows, width="stretch", hide_index=True)
+
+    st.subheader("Drill-Down")
+    drone_ids = [r.get("drone_id") or f"Drone {i + 1}" for i, r in enumerate(results)]
+    selected = st.selectbox("Select drone for detail view", drone_ids)
 
     if selected:
         idx = drone_ids.index(selected)
@@ -396,10 +334,6 @@ def _render_batch():
                 drone_result.get("risk_zones", []),
             )
 
-            mid_pt_b = scores[len(scores) // 2] if scores else rec
-            building_cells_b = call_building_coverage(mid_pt_b["lat"], mid_pt_b["lon"])
-            add_sheltering_overlay(traj_map, building_cells_b)
-
             # Pre-fetch impact data and overlay ellipses on the trajectory map
             impact_data = None
             if selected_pt:
@@ -412,7 +346,6 @@ def _render_batch():
                         "altitude_m": selected_pt["altitude_m"],
                         "heading_deg": pt_heading,
                         "speed_m_s": pt_speed,
-                        "n_monte_carlo_samples": n_mc_samples_batch,
                     })
                     add_fallout_overlay(traj_map, impact_data)
                 except Exception as e:

@@ -5,19 +5,16 @@ import multiprocessing as mp
 import time
 from concurrent.futures import ProcessPoolExecutor
 from contextlib import asynccontextmanager
+from importlib.metadata import version as pkg_version
 from pathlib import Path
 
 from fastapi import FastAPI
 
 from droneimpact.api.analyze import router as analyze_router
 from droneimpact.api.batch import JobStore, _init_batch_worker, router as batch_router
-from droneimpact.api.buildings import router as buildings_router
 from droneimpact.api.cache import ResultCache, compute_fingerprint
-from droneimpact.api.data import router as data_router
 from droneimpact.api.health import router as health_router
-from droneimpact.api.predict import router as predict_router
 from droneimpact.config import load_config
-from droneimpact.data.buildings import BuildingIndex
 from droneimpact.data.dem import DEMIndex
 from droneimpact.data.infrastructure import InfrastructureIndex
 from droneimpact.data.population import PopulationIndex
@@ -34,10 +31,8 @@ async def lifespan(app: FastAPI):
     app.state.dem = None
     app.state.population = None
     app.state.infrastructure = None
-    app.state.buildings = BuildingIndex.empty(cfg.casualty.sheltering)
     app.state.job_store = JobStore()
     app.state.batch_executor = None
-    app.state.strikes = None
 
     try:
         t0 = time.perf_counter()
@@ -63,31 +58,11 @@ async def lifespan(app: FastAPI):
         )
         logger.info("Infrastructure loaded in %.1f s", time.perf_counter() - t2)
 
-        if cfg.data.buildings_path and Path(cfg.data.buildings_path).exists():
-            t3 = time.perf_counter()
-            logger.info("Loading buildings from %s", cfg.data.buildings_path)
-            app.state.buildings = BuildingIndex.load_from_file(
-                cfg.data.buildings_path, cfg.casualty.sheltering
-            )
-            logger.info(
-                "Buildings loaded in %.1f s (%d cells)",
-                time.perf_counter() - t3,
-                app.state.buildings.cell_count,
-            )
-        else:
-            logger.info("No buildings data — sheltering disabled")
-
         app.state.data_loaded = True
         logger.info("All data loaded. Total startup: %.1f s", time.perf_counter() - t0)
 
     except Exception as e:
         logger.warning("Failed to load data: %s — starting in degraded mode", e)
-
-    if cfg.data.strikes_path:
-        from droneimpact.data.strikes import StrikeIndex
-        logger.info("Loading strike index from %s", cfg.data.strikes_path)
-        app.state.strikes = StrikeIndex.load_from_file(cfg.data.strikes_path)
-        logger.info("Strike index: %d locations", app.state.strikes.count)
 
     from droneimpact.physics.warmup import warmup_jit
     logger.info("Warming up Numba JIT kernels...")
@@ -120,12 +95,10 @@ async def lifespan(app: FastAPI):
                 dem=app.state.dem,
                 population=app.state.population,
                 infrastructure=app.state.infrastructure,
-                buildings=app.state.buildings,
                 data_loaded=True,
                 population_cells=app.state.population_cells,
-                strikes=app.state.strikes,
             )
-            ctx = mp.get_context("spawn")
+            ctx = mp.get_context("fork")
             executor = ProcessPoolExecutor(
                 max_workers=n_batch_workers,
                 mp_context=ctx,
@@ -144,13 +117,10 @@ async def lifespan(app: FastAPI):
 
 
 def create_app() -> FastAPI:
-    app = FastAPI(title="DroneImpact", version="1.2.0", lifespan=lifespan)
+    app = FastAPI(title="DroneImpact", version="1.0.0", lifespan=lifespan)
     app.include_router(health_router)
     app.include_router(analyze_router)
     app.include_router(batch_router)
-    app.include_router(buildings_router)
-    app.include_router(data_router)
-    app.include_router(predict_router)
     return app
 
 

@@ -17,7 +17,6 @@ class SingleDroneRequest(BaseModel):
     max_range_m: int = Field(default=250_000, ge=1_000, le=1_000_000)
     evaluation_spacing_m: int = Field(default=500, ge=100, le=5_000)
     include_heatmap: bool = False
-    n_monte_carlo_samples: int | None = Field(default=None, ge=100, le=5000)
 
 
 class ModeBreakdown(BaseModel):
@@ -136,7 +135,6 @@ class PointImpactRequest(BaseModel):
     altitude_m: float = Field(gt=0, le=10_000)
     heading_deg: float = Field(ge=0, lt=360)
     speed_m_s: float = Field(ge=20, le=300)
-    n_monte_carlo_samples: int | None = Field(default=None, ge=100, le=5000)
 
 
 class PointImpactModeResult(BaseModel):
@@ -150,69 +148,3 @@ class PointImpactResponse(BaseModel):
     modes: dict[str, PointImpactModeResult]
     combined_danger_zone: dict
     metadata: dict
-
-
-# --- Strike locations endpoint schemas ---
-
-
-class StrikeFeature(BaseModel):
-    type: str = "Feature"
-    geometry: dict
-    properties: dict
-
-
-class StrikeFeatureCollection(BaseModel):
-    type: str = "FeatureCollection"
-    features: list[StrikeFeature]
-    metadata: dict
-
-
-# --- Target prediction endpoint schemas ---
-
-
-class TargetPredictionRequest(BaseModel):
-    lat: float = Field(ge=-90, le=90)
-    lon: float = Field(ge=-180, le=180)
-    heading_deg: float = Field(ge=0, lt=360)
-    speed_m_s: float = Field(ge=20, le=300)
-    altitude_m: float = Field(gt=0, le=10_000)
-    max_range_m: int = Field(default=250_000, ge=1_000, le=1_000_000)
-    max_targets: int = Field(default=20, ge=1, le=100)
-    min_hotspot_strikes: int = Field(default=2, ge=1, le=100)
-
-
-class TargetSchema(BaseModel):
-    lat: float
-    lon: float
-    name: str
-    historical_strikes: int
-    category: str
-    radius_m: float
-
-
-class WaypointSchema(BaseModel):
-    lat: float
-    lon: float
-    altitude_m: float
-    distance_from_start_m: float
-    heading_deg: float
-    speed_m_s: float
-
-
-class CandidateTrajectorySchema(BaseModel):
-    target: TargetSchema
-    probability: float
-    heading_delta_deg: float
-    distance_m: float
-    waypoints: list[WaypointSchema]
-
-
-class PredictionMetadata(BaseModel):
-    targets_considered: int
-    targets_reachable: int
-    prediction_time_ms: float
-
-
-class TargetPredictionResponse(BaseModel):
-    candidates: list[CandidateTrajectorySchema]
-    metadata: PredictionMetadata

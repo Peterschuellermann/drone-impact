@@ -7,7 +7,7 @@ import math
 import pytest
 
 from droneimpact.config import AppConfig, load_config
-from droneimpact.dashboard.utils import load_multi_drone_scenarios, load_scenarios
+from droneimpact.dashboard.utils import load_scenarios
 
 
 # Target city centres for heading validation
@@ -127,66 +127,4 @@ def test_load_scenarios_no_scenarios_key(tmp_path):
     cfg_file = tmp_path / "no_scenarios.yaml"
     cfg_file.write_text("version: '1.0'\n")
     result = load_scenarios(str(cfg_file))
-    assert result == []
-
-
-# --- Multi-drone scenario tests ---
-
-@pytest.fixture
-def multi_drone_scenarios():
-    return load_multi_drone_scenarios("config.yaml")
-
-
-def test_multi_drone_scenarios_load(multi_drone_scenarios):
-    assert len(multi_drone_scenarios) >= 2
-    for s in multi_drone_scenarios:
-        assert "name" in s
-        assert "description" in s
-        assert "drones" in s
-        assert len(s["drones"]) >= 2
-
-
-def test_multi_drone_scenario_drone_fields(multi_drone_scenarios):
-    for s in multi_drone_scenarios:
-        for d in s["drones"]:
-            assert "drone_id" in d
-            traj = d["trajectory"]
-            assert -90.0 <= traj["lat"] <= 90.0
-            assert -180.0 <= traj["lon"] <= 180.0
-            assert traj["altitude_m"] > 0
-            assert 0.0 <= traj["heading_deg"] < 360.0
-            assert traj["speed_m_s"] > 0
-
-
-def test_multi_drone_scenario_names_unique(multi_drone_scenarios):
-    names = [s["name"] for s in multi_drone_scenarios]
-    assert len(names) == len(set(names))
-
-
-def test_multi_drone_scenario_drone_ids_unique(multi_drone_scenarios):
-    for s in multi_drone_scenarios:
-        ids = [d["drone_id"] for d in s["drones"]]
-        assert len(ids) == len(set(ids)), f"Duplicate drone IDs in '{s['name']}': {ids}"
-
-
-def test_multi_drone_scenarios_parse_into_config():
-    config = load_config("config.yaml")
-    assert len(config.multi_drone_scenarios) >= 2
-    for ms in config.multi_drone_scenarios:
-        assert ms.name
-        assert len(ms.drones) >= 2
-        for d in ms.drones:
-            assert d.drone_id
-            assert d.altitude_m > 0
-
-
-def test_load_multi_drone_scenarios_missing_file():
-    result = load_multi_drone_scenarios("/nonexistent/path.yaml")
-    assert result == []
-
-
-def test_load_multi_drone_scenarios_no_key(tmp_path):
-    cfg_file = tmp_path / "empty.yaml"
-    cfg_file.write_text("version: '1.0'\n")
-    result = load_multi_drone_scenarios(str(cfg_file))
     assert result == []

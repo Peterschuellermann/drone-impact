@@ -245,42 +245,6 @@ Preprocessing should be a separate offline step that produces serialised, indexe
 
 ---
 
-## Strike Locations Data Pipeline
-
-### 12. Bellingcat Civilian Harm in Ukraine (IMPLEMENTED)
-
-| Property | Detail |
-|---|---|
-| Provider | Bellingcat |
-| URL | https://bellingcat-embeds.ams3.cdn.digitaloceanspaces.com/production/ukr/timemap/api.json |
-| Format | JSON array |
-| Fields | id, date, latitude, longitude, location, description, impact |
-| Licence | See Bellingcat terms |
-| Update frequency | Ongoing |
-
-**Ingestion:**
-- Script: `scripts/ingest_strikes.py`
-- Downloads JSON from Bellingcat CDN
-- Normalises `impact` field to category: `Residential→residential`, `Industrial→industrial`, `Energy→energy`, `Military→military`, else `unknown`
-- Deduplicates by `(round(lat,3), round(lon,3), date)`
-- Output: `data/ukraine_strikes.geojson` (GeoJSON FeatureCollection)
-- Integrated into `scripts/download_data.sh` as step 4
-
-**Index:**
-- Class: `StrikeIndex` in `src/droneimpact/data/strikes.py`
-- Spatial index: `cKDTree` over metric XY (same `ref_cos_lat` pattern as `InfrastructureIndex`)
-- Methods: `query_bbox`, `query_radius`, `get_hotspots`
-- Loaded at startup (optional — graceful degradation if file absent)
-- Config key: `data.strikes_path`
-
-**API:**
-- `GET /data/strikes?south=&west=&north=&east=[&category=][&date_from=][&date_to=]`
-- Bbox is required (all four or all absent); partial bbox returns HTTP 400
-- Response: GeoJSON FeatureCollection with `metadata.total`, `metadata.filtered`, `metadata.bbox`
-- Health endpoint reports `strikes_loaded` and `strike_count`
-
----
-
 ## Trajectory Data Gap
 
 The most significant data gap is **trajectory data for historical Shahed impacts**. Most available data provides only:

@@ -13,7 +13,6 @@ from droneimpact.api.batch import (
 )
 from droneimpact.api.schemas import SingleDroneRequest, TrajectoryInput
 from droneimpact.casualty.engine import CasualtyEngine
-from droneimpact.data.buildings import BuildingIndex
 from droneimpact.data.dem import DEMIndex
 from droneimpact.data.infrastructure import InfrastructureIndex
 from droneimpact.data.population import PopulationIndex
@@ -35,7 +34,6 @@ def _make_state(config):
         dem=dem,
         population=population,
         infrastructure=infrastructure,
-        buildings=BuildingIndex.empty(config.casualty.sheltering),
         data_loaded=True,
         population_cells=population.cell_count,
     )

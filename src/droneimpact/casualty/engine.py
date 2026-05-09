@@ -3,7 +3,6 @@ from __future__ import annotations
 import numpy as np
 
 from droneimpact.config import CasualtyBand, CasualtyConfig
-from droneimpact.data.buildings import BuildingIndex
 from droneimpact.data.infrastructure import InfrastructureIndex
 from droneimpact.data.population import PopulationIndex
 
@@ -14,12 +13,10 @@ class CasualtyEngine:
         population: PopulationIndex,
         infrastructure: InfrastructureIndex,
         config: CasualtyConfig,
-        buildings: BuildingIndex | None = None,
     ):
         self._pop = population
         self._infra = infrastructure
         self._config = config
-        self._buildings = buildings or BuildingIndex.empty(config.sheltering)
 
     @property
     def population(self) -> PopulationIndex:
@@ -46,9 +43,7 @@ class CasualtyEngine:
 
         Uses configurable blast_bands and frag_bands to compute expected
         casualties in concentric annular rings, combining blast and
-        fragmentation probabilities via the union formula.  Sheltering
-        reductions from building data reduce the effective blast/frag
-        probabilities per impact point.
+        fragmentation probabilities via the union formula.
         """
         if impact_points_wgs84.shape[0] == 0:
             return np.array([], dtype=np.float64)
@@ -70,8 +65,6 @@ class CasualtyEngine:
         for r in all_radii:
             pop_within[r] = self._pop.query_batch_cells(cells, r)
 
-        blast_red, frag_red = self._buildings.sheltering_factor_batch(lats, lons)
-
         # Accumulate casualties per annular ring
         n = len(lats)
         raw = np.zeros(n, dtype=np.float64)
@@ -81,13 +74,11 @@ class CasualtyEngine:
         for r in all_radii:
             ring_pop = np.maximum(pop_within[r] - prev_pop, 0.0)
 
+            # Mid-point of the annular ring determines which band applies
             mid = (prev_radius + r) / 2.0
             p_blast = self._lookup_band_probability(blast_bands, mid)
             p_frag = self._lookup_band_probability(frag_bands, mid)
-            p_combined = 1.0 - (
-                (1.0 - p_blast * (1.0 - blast_red))
-                * (1.0 - p_frag * (1.0 - frag_red))
-            )
+            p_combined = 1.0 - (1.0 - p_blast) * (1.0 - p_frag)
 
             raw += ring_pop * p_combined
             prev_pop = pop_within[r]
@@ -124,22 +115,15 @@ class CasualtyEngine:
         ring_frag_only = np.maximum(pop_0_frag_lethal - pop_0_blast_injury, 0.0)
         ring_frag_danger = np.maximum(pop_0_frag_danger - pop_0_frag_lethal, 0.0)
 
-        blast_red, frag_red = self._buildings.sheltering_factor_batch(lats, lons)
-
-        p_zone1 = 1.0 - (
-            (1.0 - blast.p_lethal * (1.0 - blast_red))
-            * (1.0 - frag.p_frag_lethal * (1.0 - frag_red))
-        )
-        p_zone2 = 1.0 - (
-            (1.0 - blast.p_injury * (1.0 - blast_red))
-            * (1.0 - frag.p_frag_lethal * (1.0 - frag_red))
-        )
+        # Combined probability per zone using union: P = 1 - (1-P_blast)(1-P_frag)
+        p_zone1 = 1.0 - (1.0 - blast.p_lethal) * (1.0 - frag.p_frag_lethal)
+        p_zone2 = 1.0 - (1.0 - blast.p_injury) * (1.0 - frag.p_frag_lethal)
 
         raw = (
             ring_blast_lethal * p_zone1
             + ring_blast_injury * p_zone2
-            + ring_frag_only * frag.p_frag_lethal * (1.0 - frag_red)
-            + ring_frag_danger * frag.p_frag_danger * (1.0 - frag_red)
+            + ring_frag_only * frag.p_frag_lethal
+            + ring_frag_danger * frag.p_frag_danger
         )
 
         infra_penalties = self._infra.penalty_batch(lats, lons)

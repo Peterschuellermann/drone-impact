@@ -20,14 +20,11 @@ def get_api_endpoint() -> str:
 
 def call_api(
     drone_state: dict,
-    n_monte_carlo_samples: int | None = None,
     evaluation_spacing_m: int | None = None,
     max_range_m: int | None = None,
 ) -> dict:
     endpoint = get_api_endpoint()
     body: dict = {"trajectory": drone_state}
-    if n_monte_carlo_samples is not None:
-        body["n_monte_carlo_samples"] = n_monte_carlo_samples
     if evaluation_spacing_m is not None:
         body["evaluation_spacing_m"] = evaluation_spacing_m
     if max_range_m is not None:
@@ -92,20 +89,6 @@ def call_batch_api(
             return poll_data
 
     raise TimeoutError(f"Batch {batch_id} did not complete within {timeout_s}s")
-
-
-def call_building_coverage(lat: float, lon: float, radius_km: float = 50.0) -> list[dict]:
-    endpoint = get_api_endpoint()
-    try:
-        response = httpx.get(
-            f"{endpoint}/buildings/coverage",
-            params={"lat": lat, "lon": lon, "radius_km": radius_km},
-            timeout=10.0,
-        )
-        response.raise_for_status()
-        return response.json().get("cells", [])
-    except Exception:
-        return []
 
 
 def format_casualties(num: float) -> str:
@@ -173,26 +156,6 @@ def export_geojson(result: dict) -> str:
     return json.dumps(collection, indent=2)
 
 
-def call_strikes_api(
-    south: float,
-    west: float,
-    north: float,
-    east: float,
-    category: str | None = None,
-) -> dict | None:
-    endpoint = get_api_endpoint()
-    params: dict = {"south": south, "west": west, "north": north, "east": east}
-    if category:
-        params["category"] = category
-    try:
-        response = httpx.get(f"{endpoint}/data/strikes", params=params, timeout=10.0)
-        response.raise_for_status()
-        return response.json()
-    except Exception as e:
-        logger.warning("Could not fetch strike locations: %s", e)
-        return None
-
-
 def load_scenarios(config_path: str | Path = "config.yaml") -> list[dict]:
     """Load demo scenarios from config.
 
@@ -229,45 +192,6 @@ def load_scenarios(config_path: str | Path = "config.yaml") -> list[dict]:
                 "speed_m_s": float(s["trajectory"]["speed_m_s"]),
             },
             "max_range_m": s.get("max_range_m", 250_000),
-        })
-
-    return scenarios
-
-
-def load_multi_drone_scenarios(config_path: str | Path = "config.yaml") -> list[dict]:
-    path = Path(config_path)
-    if not path.exists():
-        return []
-
-    try:
-        with open(path) as f:
-            raw = yaml.safe_load(f)
-    except Exception:
-        logger.warning("Failed to parse config file %s", path, exc_info=True)
-        return []
-
-    scenarios_raw = raw.get("multi_drone_scenarios", [])
-    if not scenarios_raw:
-        return []
-
-    scenarios = []
-    for s in scenarios_raw:
-        drones = []
-        for d in s.get("drones", []):
-            drones.append({
-                "drone_id": d["drone_id"],
-                "trajectory": {
-                    "lat": float(d["lat"]),
-                    "lon": float(d["lon"]),
-                    "altitude_m": float(d["altitude_m"]),
-                    "heading_deg": float(d["heading_deg"]),
-                    "speed_m_s": float(d["speed_m_s"]),
-                },
-            })
-        scenarios.append({
-            "name": s["name"],
-            "description": s.get("description", ""),
-            "drones": drones,
         })
 
     return scenarios

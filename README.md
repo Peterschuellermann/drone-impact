@@ -27,9 +27,9 @@ droneimpact/
 │   └── droneimpact/
 │       ├── api/        # FastAPI routers and Pydantic schemas
 │       ├── physics/    # Monte Carlo terminal trajectory models (M1, M2, M3)
-│       ├── casualty/   # Blast, fragmentation, population, infrastructure, sheltering scoring
+│       ├── casualty/   # Blast, fragmentation, population, infrastructure scoring
 │       ├── scoring/    # Engagement score formula and explainability
-│       ├── data/       # Data loaders (DEM, Kontur, OSM, buildings)
+│       ├── data/       # Data loaders (DEM, Kontur, OSM)
 │       ├── dashboard/  # Streamlit visualization dashboard
 │       └── config.py   # YAML config loading and validation
 ├── tests/

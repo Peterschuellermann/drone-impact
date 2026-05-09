@@ -42,7 +42,7 @@ engagement:
   mode_enable:
     propulsion_loss: true
     loss_of_control: true
-    break_apart: true
+    break_apart: false
 
 casualty:
   blast:
@@ -66,19 +66,6 @@ casualty:
     - {radius_m: 80, probability: 0.30}
     - {radius_m: 200, probability: 0.10}
     - {radius_m: 400, probability: 0.02}
-  sheltering:
-    reinforced_concrete:
-      osm_tags: ["apartments", "commercial", "industrial", "public"]
-      blast_reduction: 0.80
-      frag_reduction: 0.90
-    masonry:
-      osm_tags: ["residential", "office", "retail"]
-      blast_reduction: 0.50
-      frag_reduction: 0.70
-    light_structure:
-      osm_tags: ["house", "garage", "shed", "farm"]
-      blast_reduction: 0.10
-      frag_reduction: 0.30
   infrastructure:
     penalty_radius_m: 500.0
     max_penalty: 10.0
@@ -112,8 +99,6 @@ data:
   population_path: "./data/kontur_ukraine.gpkg"
   dem_path: "./data/ukraine_dem.tif"
   infrastructure_path: "./data/ukraine_infra.geojson"
-  buildings_path: "./data/ukraine_buildings.geojson"
-  strikes_path: "./data/ukraine_strikes.geojson"
 
 dashboard:
   api_endpoint: "http://localhost:8000"
@@ -181,100 +166,3 @@ scenarios:
       heading_deg: 349.0
       speed_m_s: 51.4
     max_range_m: 250000
-
-multi_drone_scenarios:
-  - name: "Shahed swarm — Kyiv approach"
-    description: "5 drones detected on south-east corridor toward Kyiv from Bryansk"
-    drones:
-      - drone_id: "shahed-1"
-        lat: 52.0
-        lon: 33.5
-        altitude_m: 350
-        heading_deg: 230
-        speed_m_s: 51.4
-      - drone_id: "shahed-2"
-        lat: 51.8
-        lon: 33.8
-        altitude_m: 400
-        heading_deg: 235
-        speed_m_s: 51.4
-      - drone_id: "shahed-3"
-        lat: 51.6
-        lon: 33.2
-        altitude_m: 380
-        heading_deg: 228
-        speed_m_s: 51.4
-      - drone_id: "shahed-4"
-        lat: 52.2
-        lon: 33.0
-        altitude_m: 420
-        heading_deg: 232
-        speed_m_s: 51.4
-      - drone_id: "shahed-5"
-        lat: 51.4
-        lon: 33.6
-        altitude_m: 360
-        heading_deg: 240
-        speed_m_s: 51.4
-
-  - name: "Dual corridor — Kharkiv + Dnipro"
-    description: "3 drones toward Kharkiv from Belgorod, 2 toward Dnipro from Rostov"
-    drones:
-      - drone_id: "kharkiv-1"
-        lat: 50.5
-        lon: 36.8
-        altitude_m: 400
-        heading_deg: 215
-        speed_m_s: 51.4
-      - drone_id: "kharkiv-2"
-        lat: 50.3
-        lon: 37.0
-        altitude_m: 380
-        heading_deg: 220
-        speed_m_s: 51.4
-      - drone_id: "kharkiv-3"
-        lat: 50.7
-        lon: 36.6
-        altitude_m: 420
-        heading_deg: 210
-        speed_m_s: 51.4
-      - drone_id: "dnipro-1"
-        lat: 48.0
-        lon: 38.0
-        altitude_m: 400
-        heading_deg: 283
-        speed_m_s: 51.4
-      - drone_id: "dnipro-2"
-        lat: 47.8
-        lon: 38.3
-        altitude_m: 380
-        heading_deg: 278
-        speed_m_s: 51.4
-
-  - name: "Black Sea wave — Odesa + Mykolaiv"
-    description: "4 drones from maritime approach splitting toward Odesa and Mykolaiv"
-    drones:
-      - drone_id: "odesa-1"
-        lat: 46.0
-        lon: 31.5
-        altitude_m: 400
-        heading_deg: 313
-        speed_m_s: 51.4
-      - drone_id: "odesa-2"
-        lat: 45.8
-        lon: 31.2
-        altitude_m: 380
-        heading_deg: 320
-        speed_m_s: 51.4
-      - drone_id: "mykolaiv-1"
-        lat: 46.2
-        lon: 32.0
-        altitude_m: 400
-        heading_deg: 340
-        speed_m_s: 51.4
-      - drone_id: "mykolaiv-2"
-        lat: 46.4
-        lon: 32.3
-        altitude_m: 360
-        heading_deg: 335
-        speed_m_s: 51.4

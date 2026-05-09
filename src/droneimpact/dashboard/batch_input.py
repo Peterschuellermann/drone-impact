@@ -5,77 +5,15 @@ import io
 
 import streamlit as st
 
-from droneimpact.dashboard.utils import load_multi_drone_scenarios
-
 REQUIRED_COLUMNS = {"lat", "lon", "altitude_m", "heading_deg", "speed_m_s"}
 
 
 def render_batch_input() -> list[dict] | None:
-    mode = st.radio("Input mode", ["Scenario", "Manual", "CSV Upload"], horizontal=True)
+    mode = st.radio("Input mode", ["Manual", "CSV Upload"], horizontal=True)
 
-    if mode == "Scenario":
-        return _render_scenario_input()
     if mode == "Manual":
         return _render_manual_input()
     return _render_csv_input()
-
-
-def _render_scenario_input() -> list[dict] | None:
-    scenarios = load_multi_drone_scenarios()
-    if not scenarios:
-        st.warning("No multi-drone scenarios found in config.yaml.")
-        return None
-
-    scenario_names = [s["name"] for s in scenarios]
-    scenario_map = {s["name"]: s for s in scenarios}
-
-    selected_name = st.selectbox("Load scenario", scenario_names)
-    scenario = scenario_map[selected_name]
-    st.caption(scenario["description"])
-
-    if "scenario_drones" not in st.session_state or st.session_state.get("scenario_name") != selected_name:
-        st.session_state["scenario_drones"] = [
-            {
-                "drone_id": d["drone_id"],
-                "lat": d["trajectory"]["lat"],
-                "lon": d["trajectory"]["lon"],
-                "altitude_m": d["trajectory"]["altitude_m"],
-                "heading_deg": d["trajectory"]["heading_deg"],
-                "speed_m_s": d["trajectory"]["speed_m_s"],
-            }
-            for d in scenario["drones"]
-        ]
-        st.session_state["scenario_name"] = selected_name
-
-    drones_state = st.session_state["scenario_drones"]
-
-    st.subheader(f"Drones ({len(drones_state)})")
-    for i, d in enumerate(drones_state):
-        with st.expander(f"{d['drone_id']}", expanded=False):
-            d["drone_id"] = st.text_input("Drone ID", value=d["drone_id"], key=f"sc_id_{i}")
-            d["lat"] = st.number_input("Latitude", value=d["lat"], min_value=-90.0,
-                                       max_value=90.0, format="%.5f", key=f"sc_lat_{i}")
-            d["lon"] = st.number_input("Longitude", value=d["lon"], min_value=-180.0,
-                                       max_value=180.0, format="%.5f", key=f"sc_lon_{i}")
-            d["altitude_m"] = st.number_input("Altitude (m)", value=d["altitude_m"], min_value=1.0,
-                                              max_value=10000.0, key=f"sc_alt_{i}")
-            d["heading_deg"] = st.number_input("Heading (deg)", value=d["heading_deg"], min_value=0.0,
-                                               max_value=359.9, key=f"sc_hdg_{i}")
-            d["speed_m_s"] = st.number_input("Speed (m/s)", value=d["speed_m_s"], min_value=20.0,
-                                             max_value=300.0, key=f"sc_spd_{i}")
-
-    if st.button("Analyze Batch", type="primary", width="stretch"):
-        return [
-            {
-                "drone_id": d["drone_id"],
-                "trajectory": {
-                    "lat": d["lat"], "lon": d["lon"], "altitude_m": d["altitude_m"],
-                    "heading_deg": d["heading_deg"], "speed_m_s": d["speed_m_s"],
-                },
-            }
-            for d in drones_state
-        ]
-    return None
 
 
 def _render_manual_input() -> list[dict] | None:

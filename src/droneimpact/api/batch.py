@@ -130,16 +130,13 @@ def _analyze_one(drone_req: SingleDroneRequest, state, point_workers: int | None
         population=state.population,
         infrastructure=state.infrastructure,
         config=state.config.casualty,
-        buildings=state.buildings,
     )
     scoring_engine = ScoringEngine(config=state.config, max_point_workers=point_workers)
-    n_samples = drone_req.n_monte_carlo_samples or state.config.physics.n_monte_carlo_samples
     result = scoring_engine.score_trajectory(
         trajectory=trajectory,
         dem=state.dem,
         casualty_engine=casualty_engine,
         intercept_point_origin=(sv.lat, sv.lon),
-        n_samples=n_samples,
     )
     elapsed_ms = (time.perf_counter() - t0) * 1000
     return _build_response(drone_req, result, elapsed_ms, state).model_dump()

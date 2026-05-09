@@ -376,77 +376,7 @@ def _drone_colour(index: int) -> str:
     return BATCH_PALETTE[index % len(BATCH_PALETTE)]
 
 
-def make_drone_overview_map(
-    drones: list[dict],
-    selected_idx: int | None = None,
-) -> folium.Map:
-    if not drones:
-        return folium.Map(location=[48.5, 35.0], zoom_start=6)
-
-    m = folium.Map(tiles="OpenStreetMap")
-    all_lats, all_lons = [], []
-
-    for i, d in enumerate(drones):
-        traj = d.get("trajectory", d)
-        lat, lon = traj["lat"], traj["lon"]
-        heading = traj["heading_deg"]
-        drone_id = d.get("drone_id", f"Drone {i + 1}")
-        colour = _drone_colour(i)
-        is_selected = (i == selected_idx)
-
-        all_lats.append(lat)
-        all_lons.append(lon)
-
-        radius = 10 if is_selected else 6
-        weight = 4 if is_selected else 2
-        opacity = 1.0 if is_selected else 0.7
-
-        folium.CircleMarker(
-            [lat, lon],
-            radius=radius,
-            color=colour,
-            fill=True,
-            fill_opacity=opacity,
-            weight=weight,
-            tooltip=(
-                f"{drone_id} | "
-                f"Alt: {traj['altitude_m']:.0f}m | "
-                f"Hdg: {heading:.0f}° | "
-                f"Spd: {traj['speed_m_s']:.1f} m/s"
-            ),
-        ).add_to(m)
-
-        arrow_len = 0.15
-        end_lat = lat + arrow_len * math.cos(math.radians(heading))
-        end_lon = lon + arrow_len * math.sin(math.radians(heading)) / math.cos(math.radians(lat))
-        folium.PolyLine(
-            [[lat, lon], [end_lat, end_lon]],
-            color=colour, weight=3 if is_selected else 2, opacity=opacity,
-        ).add_to(m)
-
-        folium.Marker(
-            [lat, lon],
-            icon=folium.DivIcon(
-                html=(
-                    f'<div style="font-size:9px;font-weight:{"bold" if is_selected else "normal"};'
-                    f'color:{colour};text-shadow:1px 1px 2px white,-1px -1px 2px white;'
-                    f'white-space:nowrap;">{drone_id}</div>'
-                ),
-                icon_size=(80, 14),
-                icon_anchor=(-5, 14),
-            ),
-        ).add_to(m)
-
-    if all_lats:
-        m.fit_bounds([
-            [min(all_lats) - 0.2, min(all_lons) - 0.2],
-            [max(all_lats) + 0.2, max(all_lons) + 0.2],
-        ])
-
-    return m
-
-
-def make_batch_map(batch_result: dict, selected_drone_idx: int | None = None) -> folium.Map:
+def make_batch_map(batch_result: dict) -> folium.Map:
     results = batch_result.get("results", [])
     if not results:
         return folium.Map(location=[48.5, 35.0], zoom_start=6)
@@ -459,16 +389,12 @@ def make_batch_map(batch_result: dict, selected_drone_idx: int | None = None) ->
         drone_id = drone_result.get("drone_id") or f"Drone {i + 1}"
         scores = drone_result["trajectory_scores"]
         rec = drone_result["recommended_engagement"]
-        is_selected = (i == selected_drone_idx)
-
-        line_weight = 5 if is_selected else 3
-        line_opacity = 1.0 if is_selected else 0.7
 
         group = folium.FeatureGroup(name=drone_id, show=True)
 
         coords = [[pt["lat"], pt["lon"]] for pt in scores]
         if coords:
-            folium.PolyLine(coords, color=colour, weight=line_weight, opacity=line_opacity).add_to(group)
+            folium.PolyLine(coords, color=colour, weight=3, opacity=0.7).add_to(group)
             add_direction_arrows(m, coords, color=colour, group=group)
             all_lats.extend(pt["lat"] for pt in scores)
             all_lons.extend(pt["lon"] for pt in scores)
@@ -695,51 +621,6 @@ def add_fallout_overlay(
     return map_obj
 
 
-_CATEGORY_COLOURS = {
-    "residential": "#ef4444",
-    "industrial": "#f97316",
-    "energy": "#eab308",
-    "military": "#a855f7",
-    "unknown": "#9ca3af",
-}
-
-
-def add_strike_overlay(map_obj: folium.Map, feature_collection: dict) -> folium.Map:
-    features = feature_collection.get("features", [])
-    if not features:
-        return map_obj
-
-    group = folium.FeatureGroup(name="Strike Locations", show=False)
-    for feat in features:
-        coords = feat.get("geometry", {}).get("coordinates", [None, None])
-        lon, lat = coords[0], coords[1]
-        if lat is None or lon is None:
-            continue
-        props = feat.get("properties", {})
-        cat = props.get("category", "unknown")
-        colour = _CATEGORY_COLOURS.get(cat, "#9ca3af")
-        popup_html = (
-            f"<b>{props.get('location_name', 'Unknown')}</b><br>"
-            f"Date: {props.get('date', '—')}<br>"
-            f"Category: {cat}<br>"
-            f"Source: {props.get('source', '—')}<br>"
-            f"{props.get('description', '')[:120]}"
-        )
-        folium.CircleMarker(
-            location=[lat, lon],
-            radius=5,
-            color=colour,
-            fill=True,
-            fill_opacity=0.7,
-            weight=1,
-            popup=folium.Popup(popup_html, max_width=280),
-            tooltip=f"{cat} — {props.get('date', '—')}",
-        ).add_to(group)
-
-    group.add_to(map_obj)
-    return map_obj
-
-
 def add_risk_zone_overlay(
     map_obj: folium.Map,
     trajectory_scores: list[dict],
@@ -774,48 +655,6 @@ def add_risk_zone_overlay(
             ).add_to(risk_group)
 
     risk_group.add_to(map_obj)
-    return map_obj
-
-
-SHELTERING_COLOURS = {
-    "reinforced_concrete": "#1e40af",
-    "masonry": "#b45309",
-    "light_structure": "#65a30d",
-}
-
-SHELTERING_LABELS = {
-    "reinforced_concrete": "Reinforced Concrete",
-    "masonry": "Masonry",
-    "light_structure": "Light Structure",
-}
-
-
-def add_sheltering_overlay(
-    map_obj: folium.Map,
-    building_cells: list[dict],
-) -> folium.Map:
-    if not building_cells:
-        return map_obj
-
-    shelter_group = folium.FeatureGroup(name="Building Sheltering", show=False)
-
-    for cell in building_cells:
-        cls = cell["protection_class"]
-        colour = SHELTERING_COLOURS.get(cls, "#888888")
-        label = SHELTERING_LABELS.get(cls, cls)
-        boundary = cell["boundary"]
-        folium.Polygon(
-            locations=boundary,
-            color=colour,
-            fill=True,
-            fill_color=colour,
-            fill_opacity=0.35,
-            weight=1,
-            opacity=0.5,
-            tooltip=label,
-        ).add_to(shelter_group)
-
-    shelter_group.add_to(map_obj)
     return map_obj
 
 
