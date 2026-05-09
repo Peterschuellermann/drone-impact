@@ -475,3 +475,79 @@ class TestComputeBearing:
             (0.0, 0.0, 45.0, 90.0),
         ]:
             assert abs(compute_bearing(lat1, lon1, lat2, lon2) - _bearing(lat1, lon1, lat2, lon2)) < 0.001
+
+
+def _make_prediction(top_target_name: str, probability: float = 0.4) -> dict:
+    return {
+        "candidates": [
+            {
+                "target": {"name": top_target_name, "lat": 50.0, "lon": 30.0,
+                           "category": "energy", "historical_strikes": 10},
+                "probability": probability,
+                "distance_m": 150_000,
+                "heading_delta_deg": 10.0,
+                "waypoints": [],
+            },
+        ],
+        "metadata": {"targets_considered": 50, "targets_reachable": 10, "prediction_time_ms": 30.0},
+    }
+
+
+class TestConvergingThreats:
+    def test_no_converging(self):
+        from droneimpact.dashboard.app import _find_converging_threats
+        predictions = {
+            "drone-1": _make_prediction("Kyiv"),
+            "drone-2": _make_prediction("Odesa"),
+            "drone-3": _make_prediction("Kharkiv"),
+        }
+        result = _find_converging_threats(predictions)
+        assert result == {}
+
+    def test_two_drones_same_target(self):
+        from droneimpact.dashboard.app import _find_converging_threats
+        predictions = {
+            "drone-1": _make_prediction("Kyiv"),
+            "drone-2": _make_prediction("Kyiv"),
+            "drone-3": _make_prediction("Odesa"),
+        }
+        result = _find_converging_threats(predictions)
+        assert "Kyiv" in result
+        assert set(result["Kyiv"]) == {"drone-1", "drone-2"}
+        assert "Odesa" not in result
+
+    def test_all_same_target(self):
+        from droneimpact.dashboard.app import _find_converging_threats
+        predictions = {
+            "d1": _make_prediction("Kyiv"),
+            "d2": _make_prediction("Kyiv"),
+            "d3": _make_prediction("Kyiv"),
+        }
+        result = _find_converging_threats(predictions)
+        assert len(result["Kyiv"]) == 3
+
+    def test_empty_predictions(self):
+        from droneimpact.dashboard.app import _find_converging_threats
+        assert _find_converging_threats({}) == {}
+
+    def test_none_prediction_skipped(self):
+        from droneimpact.dashboard.app import _find_converging_threats
+        predictions = {
+            "drone-1": _make_prediction("Kyiv"),
+            "drone-2": None,
+            "drone-3": _make_prediction("Kyiv"),
+        }
+        result = _find_converging_threats(predictions)
+        assert set(result["Kyiv"]) == {"drone-1", "drone-3"}
+
+    def test_multiple_converging_groups(self):
+        from droneimpact.dashboard.app import _find_converging_threats
+        predictions = {
+            "d1": _make_prediction("Kyiv"),
+            "d2": _make_prediction("Kyiv"),
+            "d3": _make_prediction("Odesa"),
+            "d4": _make_prediction("Odesa"),
+        }
+        result = _find_converging_threats(predictions)
+        assert "Kyiv" in result
+        assert "Odesa" in result

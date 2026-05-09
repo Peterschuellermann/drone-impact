@@ -32,6 +32,7 @@ from droneimpact.dashboard.utils import (
     call_strikes_api,
     compute_bearing,
     export_geojson,
+    load_multi_drone_scenarios,
     load_scenarios,
 )
 
@@ -517,13 +518,29 @@ def _render_batch():
 def _render_multi_trajectory():
     st.title("DroneImpact — Multi-Trajectory Prediction")
 
+    multi_scenarios = load_multi_drone_scenarios()
+
     with st.sidebar:
-        st.header("Drone State")
-        lat = st.number_input("Latitude", value=52.0, format="%.5f", min_value=-90.0, max_value=90.0)
-        lon = st.number_input("Longitude", value=33.5, format="%.5f", min_value=-180.0, max_value=180.0)
-        altitude_m = st.number_input("Altitude (m)", value=400.0, min_value=1.0, max_value=10000.0)
-        heading_deg = st.number_input("Heading (deg)", value=230.0, min_value=0.0, max_value=359.9)
-        speed_m_s = st.number_input("Speed (m/s)", value=51.4, min_value=20.0, max_value=300.0)
+        input_mode = st.radio("Input", ["Single drone", "Scenario"], horizontal=True, key="mt_input_mode")
+
+        if input_mode == "Scenario" and multi_scenarios:
+            scenario_names = [s["name"] for s in multi_scenarios]
+            scenario_map = {s["name"]: s for s in multi_scenarios}
+            selected_name = st.selectbox("Load scenario", scenario_names, key="mt_scenario_sel")
+            scenario = scenario_map[selected_name]
+            st.caption(scenario["description"])
+        else:
+            if input_mode == "Scenario" and not multi_scenarios:
+                st.warning("No multi-drone scenarios in config.")
+                input_mode = "Single drone"
+
+        if input_mode == "Single drone":
+            st.header("Drone State")
+            lat = st.number_input("Latitude", value=52.0, format="%.5f", min_value=-90.0, max_value=90.0)
+            lon = st.number_input("Longitude", value=33.5, format="%.5f", min_value=-180.0, max_value=180.0)
+            altitude_m = st.number_input("Altitude (m)", value=400.0, min_value=1.0, max_value=10000.0)
+            heading_deg = st.number_input("Heading (deg)", value=230.0, min_value=0.0, max_value=359.9)
+            speed_m_s = st.number_input("Speed (m/s)", value=51.4, min_value=20.0, max_value=300.0)
 
         st.divider()
         st.subheader("Prediction Parameters")
@@ -532,6 +549,21 @@ def _render_multi_trajectory():
 
         predict_btn = st.button("Predict Targets", type="primary", width="stretch")
 
+    if input_mode == "Scenario":
+        _render_multi_trajectory_scenario(
+            scenario, max_range_m, max_targets, predict_btn,
+        )
+    else:
+        _render_multi_trajectory_single(
+            lat, lon, heading_deg, speed_m_s, altitude_m,
+            max_range_m, max_targets, predict_btn,
+        )
+
+
+def _render_multi_trajectory_single(
+    lat, lon, heading_deg, speed_m_s, altitude_m,
+    max_range_m, max_targets, predict_btn,
+):
     if predict_btn:
         with st.spinner("Predicting target trajectories..."):
             prediction = call_predict_targets(
@@ -625,6 +657,126 @@ def _render_multi_trajectory():
                 st.rerun()
             except Exception as e:
                 st.warning(f"Could not score: {e}")
+
+
+def _find_converging_threats(predictions: dict) -> dict[str, list[str]]:
+    target_to_drones: dict[str, list[str]] = {}
+    for drone_id, pred in predictions.items():
+        if not pred or not pred.get("candidates"):
+            continue
+        top = pred["candidates"][0]
+        target_name = top["target"]["name"]
+        target_to_drones.setdefault(target_name, []).append(drone_id)
+    return {t: ds for t, ds in target_to_drones.items() if len(ds) > 1}
+
+
+def _render_multi_trajectory_scenario(
+    scenario, max_range_m, max_targets, predict_btn,
+):
+    drones = scenario["drones"]
+
+    if predict_btn:
+        predictions = {}
+        progress = st.progress(0, text="Predicting targets for all drones...")
+        for i, d in enumerate(drones):
+            traj = d["trajectory"]
+            pred = call_predict_targets(
+                traj["lat"], traj["lon"], traj["heading_deg"],
+                traj["speed_m_s"], traj["altitude_m"],
+                max_range_m=max_range_m, max_targets=max_targets,
+            )
+            predictions[d["drone_id"]] = pred
+            progress.progress((i + 1) / len(drones), text=f"Predicted {i + 1}/{len(drones)} drones")
+        progress.empty()
+        st.session_state["mt_scenario_predictions"] = predictions
+        st.session_state["mt_scenario_name"] = scenario["name"]
+
+    if "mt_scenario_predictions" not in st.session_state:
+        overview_drones = [{"drone_id": d["drone_id"], "trajectory": d["trajectory"]} for d in drones]
+        st_folium(
+            make_drone_overview_map(overview_drones),
+            width="stretch", height=400, returned_objects=[], key="mt_overview",
+        )
+        st.info("Click **Predict Targets** to analyze all drones in this scenario.")
+        return
+
+    predictions = st.session_state["mt_scenario_predictions"]
+    converging = _find_converging_threats(predictions)
+
+    if converging:
+        st.warning(
+            f"**Converging threats detected:** "
+            + ", ".join(
+                f"{target} ({', '.join(ds)})"
+                for target, ds in converging.items()
+            )
+        )
+
+    converging_drones = set()
+    for ds in converging.values():
+        converging_drones.update(ds)
+
+    st.subheader("Tactical Summary")
+    summary_rows = []
+    for d in drones:
+        drone_id = d["drone_id"]
+        pred = predictions.get(drone_id)
+        if not pred or not pred.get("candidates"):
+            summary_rows.append({
+                "Drone": drone_id,
+                "Top Target": "—",
+                "Probability": "—",
+                "Distance (km)": "—",
+                "Converging": "",
+            })
+            continue
+        top = pred["candidates"][0]
+        target_name = top["target"]["name"]
+        is_converging = drone_id in converging_drones
+        summary_rows.append({
+            "Drone": drone_id,
+            "Top Target": target_name,
+            "Probability": f"{top['probability']:.1%}",
+            "Distance (km)": f"{top['distance_m']/1000:.0f}",
+            "Converging": "CONVERGING" if is_converging else "",
+        })
+    st.dataframe(summary_rows, use_container_width=True, hide_index=True)
+
+    st.subheader("Drone Detail")
+    drone_ids = [d["drone_id"] for d in drones]
+    selected_drone = st.selectbox("Select drone for trajectory view", drone_ids, key="mt_drone_sel")
+    selected_drone_data = next(d for d in drones if d["drone_id"] == selected_drone)
+    traj = selected_drone_data["trajectory"]
+    pred = predictions.get(selected_drone)
+
+    if not pred or not pred.get("candidates"):
+        st.warning(f"No predictions available for {selected_drone}.")
+        return
+
+    candidates = pred["candidates"]
+    meta = pred["metadata"]
+
+    col1, col2, col3 = st.columns(3)
+    col1.metric("Targets considered", meta["targets_considered"])
+    col2.metric("Reachable targets", meta["targets_reachable"])
+    col3.metric("Prediction time", f"{meta['prediction_time_ms']:.0f} ms")
+
+    traj_map = make_multi_trajectory_map(
+        traj["lat"], traj["lon"], candidates,
+    )
+    st_folium(traj_map, width="stretch", height=500, returned_objects=[], key="mt_detail_map")
+
+    table_data = []
+    for i, c in enumerate(candidates):
+        table_data.append({
+            "Rank": i + 1,
+            "Target": c["target"]["name"],
+            "Probability": f"{c['probability']:.1%}",
+            "Distance (km)": f"{c['distance_m']/1000:.0f}",
+            "Heading Δ": f"{c['heading_delta_deg']:.0f}°",
+            "Historical Strikes": c["target"]["historical_strikes"],
+        })
+    st.dataframe(table_data, use_container_width=True, hide_index=True)
 
 
 if page == "Single Drone":
