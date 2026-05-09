@@ -420,6 +420,27 @@ class TestCityBoundarySharpness:
                     )
 
 
+def test_find_risk_zones_with_non_contiguous_indices():
+    """Risk zone detection must not crash when adaptive resolution skips indices."""
+    traj = _make_trajectory(6)
+    # Simulate adaptive resolution: only indices 0, 2, 4, 5 are scored
+    scored_indices = [0, 2, 4, 5]
+    point_scores = []
+    for i in scored_indices:
+        ps = _make_point_score(traj[i], 0.0)
+        # Indices 2 and 4 are high-risk (skipping index 3)
+        ps.hit_branch_expected_casualties = 5.0 if i in (2, 4) else 0.0
+        point_scores.append(ps)
+
+    engine = ScoringEngine.__new__(ScoringEngine)
+    zones = engine._find_risk_zones(point_scores, threshold=1.0)
+    assert len(zones) == 1
+    assert zones[0].start_index == 2
+    assert zones[0].end_index == 4
+    assert zones[0].start_distance_m == traj[2].distance_from_start_m
+    assert zones[0].end_distance_m == traj[4].distance_from_start_m
+
+
 class TestEnuToWgs84NanFiltering:
     def test_nan_rows_filtered(self):
         enu = np.array([[100.0, 200.0], [np.nan, 300.0], [400.0, np.nan]])
