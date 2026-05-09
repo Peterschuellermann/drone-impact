@@ -12,10 +12,24 @@ import yaml
 logger = logging.getLogger(__name__)
 
 
+def _load_dashboard_config():
+    from droneimpact.config import DashboardConfig
+    try:
+        with open("config.yaml") as f:
+            raw = yaml.safe_load(f) or {}
+        return DashboardConfig.model_validate(raw.get("dashboard", {}))
+    except Exception:
+        return DashboardConfig()
+
+
+def get_dashboard_config():
+    return _load_dashboard_config()
+
+
 def get_api_endpoint() -> str:
     if url := os.environ.get("DRONEIMPACT_API_URL"):
         return url.rstrip("/")
-    return "http://localhost:8000"
+    return get_dashboard_config().api_endpoint
 
 
 def call_api(
