@@ -113,6 +113,29 @@ class RiskZoneSchema(BaseModel):
     peak_expected_casualties: float
 
 
+class InterceptionZoneSchema(BaseModel):
+    zone_id: int
+    risk_class: str
+    start_index: int
+    end_index: int
+    start_lat: float
+    start_lon: float
+    end_lat: float
+    end_lon: float
+    start_distance_m: float
+    end_distance_m: float
+    length_m: float
+    corridor_polygon: list[list[float]]
+    uncertainty_radius_m: float
+    intercept_probability: float
+    mean_engagement_score: float
+    best_engagement_score: float
+    best_point_index: int
+    peak_expected_casualties: float
+    mean_expected_casualties: float
+    fall_ellipses: list[ImpactDistributionSchema] = []
+
+
 class SingleDroneResponse(BaseModel):
     drone_id: str | None
     computed_at_utc: str
@@ -124,6 +147,7 @@ class SingleDroneResponse(BaseModel):
     engagement_zones: list[EngagementZoneSchema] | None = None
     risk_zones: list[RiskZoneSchema] = []
     unconstrained_optimum: RecommendedEngagementSchema | None = None
+    interception_zones: list[InterceptionZoneSchema] = []
 
 
 # --- Point impact endpoint schemas ---

@@ -164,6 +164,9 @@ class ScoringConfig(BaseModel):
     miss_cache_heading_round_deg: float = 1.0
     zone_caution_threshold: float = 0.1
     zone_nogo_threshold: float = 1.0
+    interception_timing_uncertainty_s: float = 3.0
+    drone_maneuverability_radius_m: float = 300.0
+    interception_zone_min_points: int = 2
 
 
 class ScenarioTrajectory(BaseModel):

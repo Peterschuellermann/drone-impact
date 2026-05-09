@@ -7,6 +7,7 @@ from streamlit_folium import st_folium
 from droneimpact.dashboard.batch_input import render_batch_input
 from droneimpact.dashboard.components import (
     add_fallout_overlay,
+    add_interception_zones_layer,
     add_risk_zone_overlay,
     make_batch_map,
     make_coloured_trajectory,
@@ -139,6 +140,10 @@ def _render_single_drone():
                 traj_map,
                 scores,
                 result.get("risk_zones", []),
+            )
+            add_interception_zones_layer(
+                traj_map,
+                result.get("interception_zones", []),
             )
 
             _ranked_marker_colors = {
@@ -342,6 +347,10 @@ def _render_batch():
                 traj_map,
                 scores,
                 drone_result.get("risk_zones", []),
+            )
+            add_interception_zones_layer(
+                traj_map,
+                drone_result.get("interception_zones", []),
             )
 
             impact_data = None

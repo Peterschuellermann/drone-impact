@@ -94,6 +94,30 @@ class RiskZone:
 
 
 @dataclass
+class InterceptionZone:
+    zone_id: int
+    risk_class: str
+    start_index: int
+    end_index: int
+    start_lat: float
+    start_lon: float
+    end_lat: float
+    end_lon: float
+    start_distance_m: float
+    end_distance_m: float
+    length_m: float
+    corridor_polygon: list[list[float]]
+    uncertainty_radius_m: float
+    intercept_probability: float
+    mean_engagement_score: float
+    best_engagement_score: float
+    best_point_index: int
+    peak_expected_casualties: float
+    mean_expected_casualties: float
+    fall_ellipses: list[ImpactDistribution] = field(default_factory=list)
+
+
+@dataclass
 class TrajectoryResult:
     trajectory_scores: list[PointScore]
     recommended_engagement: RecommendedEngagement
@@ -103,3 +127,4 @@ class TrajectoryResult:
     risk_zones: list[RiskZone] = field(default_factory=list)
     unconstrained_optimum: RecommendedEngagement | None = None
     ranked_engagements: list[RankedEngagement] = field(default_factory=list)
+    interception_zones: list[InterceptionZone] = field(default_factory=list)

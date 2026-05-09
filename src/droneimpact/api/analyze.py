@@ -14,6 +14,7 @@ from droneimpact.api.schemas import (
     EngagementZoneSchema,
     ImpactDistributionSchema,
     ImpactEllipseSchema,
+    InterceptionZoneSchema,
     MetadataSchema,
     ModeBreakdown,
     PointImpactModeResult,
@@ -294,6 +295,45 @@ def _build_response(
             reasoning=uo.reasoning,
         )
 
+    interception_zones = [
+        InterceptionZoneSchema(
+            zone_id=iz.zone_id,
+            risk_class=iz.risk_class,
+            start_index=iz.start_index,
+            end_index=iz.end_index,
+            start_lat=iz.start_lat,
+            start_lon=iz.start_lon,
+            end_lat=iz.end_lat,
+            end_lon=iz.end_lon,
+            start_distance_m=iz.start_distance_m,
+            end_distance_m=iz.end_distance_m,
+            length_m=iz.length_m,
+            corridor_polygon=iz.corridor_polygon,
+            uncertainty_radius_m=iz.uncertainty_radius_m,
+            intercept_probability=iz.intercept_probability,
+            mean_engagement_score=iz.mean_engagement_score,
+            best_engagement_score=iz.best_engagement_score,
+            best_point_index=iz.best_point_index,
+            peak_expected_casualties=iz.peak_expected_casualties,
+            mean_expected_casualties=iz.mean_expected_casualties,
+            fall_ellipses=[
+                ImpactDistributionSchema(
+                    point_index=fe.point_index,
+                    mode=fe.mode,
+                    impact_ellipse=ImpactEllipseSchema(
+                        centre_lat=fe.impact_ellipse.centre_lat,
+                        centre_lon=fe.impact_ellipse.centre_lon,
+                        semi_major_m=fe.impact_ellipse.semi_major_m,
+                        semi_minor_m=fe.impact_ellipse.semi_minor_m,
+                        orientation_deg=fe.impact_ellipse.orientation_deg,
+                    ),
+                )
+                for fe in iz.fall_ellipses
+            ],
+        )
+        for iz in result.interception_zones
+    ]
+
     return SingleDroneResponse(
         drone_id=req.drone_id,
         computed_at_utc=datetime.now(timezone.utc).isoformat(),
@@ -313,4 +353,5 @@ def _build_response(
         engagement_zones=zones,
         risk_zones=risk_zones,
         unconstrained_optimum=unconstrained_optimum,
+        interception_zones=interception_zones,
     )
