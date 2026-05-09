@@ -634,12 +634,14 @@ def make_batch_map(batch_result: dict, selected_drone_idx: int | None = None) ->
             ellipse = dist["impact_ellipse"]
             mode = dist["mode"]
             mode_colour = MODE_COLOURS.get(mode, "#888888")
-            folium.Circle(
+            circle = folium.Circle(
                 [ellipse["centre_lat"], ellipse["centre_lon"]],
                 radius=ellipse["semi_major_m"],
                 color=mode_colour, fill=True, fill_opacity=0.15,
-                tooltip=f"{drone_id} — {MODE_LABELS.get(mode, mode)} CEP",
-            ).add_to(impact_group)
+                popup=f"{drone_id} — {MODE_LABELS.get(mode, mode)} CEP",
+            )
+            circle.options["interactive"] = False
+            circle.add_to(impact_group)
         impact_group.add_to(m)
 
         risk_zones = drone_result.get("risk_zones", [])
@@ -653,10 +655,12 @@ def make_batch_map(batch_result: dict, selected_drone_idx: int | None = None) ->
                     if pt:
                         segment.append([pt["lat"], pt["lon"]])
                 if len(segment) >= 2:
-                    folium.PolyLine(
+                    line = folium.PolyLine(
                         segment, color="#dc2626", weight=8, opacity=0.5,
-                        tooltip=f"{drone_id} Risk zone: peak {rz.get('peak_expected_casualties', 0):.4f}",
-                    ).add_to(risk_group)
+                        popup=f"{drone_id} Risk zone: peak {rz.get('peak_expected_casualties', 0):.4f}",
+                    )
+                    line.options["interactive"] = False
+                    line.add_to(risk_group)
             risk_group.add_to(m)
 
         ranked = drone_result.get("ranked_engagements", [])
