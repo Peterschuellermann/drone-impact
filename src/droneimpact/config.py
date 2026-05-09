@@ -153,6 +153,7 @@ class DataPaths(BaseModel):
     dem_path: str
     infrastructure_path: str
     buildings_path: str = ""
+    strikes_path: str | None = None
 
 
 class ScoringConfig(BaseModel):

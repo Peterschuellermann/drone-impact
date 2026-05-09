@@ -8,6 +8,7 @@ from droneimpact.dashboard.batch_input import render_batch_input
 from droneimpact.dashboard.components import (
     add_fallout_overlay,
     add_risk_zone_overlay,
+    add_strike_overlay,
     make_batch_map,
     make_coloured_trajectory,
     make_impact_scatter,
@@ -23,6 +24,7 @@ from droneimpact.dashboard.utils import (
     call_api,
     call_batch_api,
     call_point_impact_api,
+    call_strikes_api,
     export_geojson,
     load_scenarios,
 )
@@ -86,6 +88,10 @@ def _render_single_drone():
         if n_mc_samples > 3000:
             st.caption("⚠ High sample counts may exceed the 500 ms latency budget.")
 
+        st.divider()
+        st.subheader("Map Layers")
+        show_strikes = st.checkbox("Strike locations", value=False)
+
         analyze_btn = st.button("Analyze", type="primary", width="stretch") or auto_submit
 
     @st.cache_data(ttl=300, show_spinner=False)
@@ -135,6 +141,18 @@ def _render_single_drone():
                 scores,
                 result.get("risk_zones", []),
             )
+
+            if show_strikes and scores:
+                s_lats = [pt["lat"] for pt in scores]
+                s_lons = [pt["lon"] for pt in scores]
+                strikes_fc = call_strikes_api(
+                    south=min(s_lats) - 0.5,
+                    west=min(s_lons) - 0.5,
+                    north=max(s_lats) + 0.5,
+                    east=max(s_lons) + 0.5,
+                )
+                if strikes_fc:
+                    add_strike_overlay(traj_map, strikes_fc)
 
             # Add ranked interception point markers (ranks 2-5; rank 1 is the red star)
             _ranked_marker_colors = {

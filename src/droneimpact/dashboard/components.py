@@ -621,6 +621,51 @@ def add_fallout_overlay(
     return map_obj
 
 
+_CATEGORY_COLOURS = {
+    "residential": "#ef4444",
+    "industrial": "#f97316",
+    "energy": "#eab308",
+    "military": "#a855f7",
+    "unknown": "#9ca3af",
+}
+
+
+def add_strike_overlay(map_obj: folium.Map, feature_collection: dict) -> folium.Map:
+    features = feature_collection.get("features", [])
+    if not features:
+        return map_obj
+
+    group = folium.FeatureGroup(name="Strike Locations", show=False)
+    for feat in features:
+        coords = feat.get("geometry", {}).get("coordinates", [None, None])
+        lon, lat = coords[0], coords[1]
+        if lat is None or lon is None:
+            continue
+        props = feat.get("properties", {})
+        cat = props.get("category", "unknown")
+        colour = _CATEGORY_COLOURS.get(cat, "#9ca3af")
+        popup_html = (
+            f"<b>{props.get('location_name', 'Unknown')}</b><br>"
+            f"Date: {props.get('date', '—')}<br>"
+            f"Category: {cat}<br>"
+            f"Source: {props.get('source', '—')}<br>"
+            f"{props.get('description', '')[:120]}"
+        )
+        folium.CircleMarker(
+            location=[lat, lon],
+            radius=5,
+            color=colour,
+            fill=True,
+            fill_opacity=0.7,
+            weight=1,
+            popup=folium.Popup(popup_html, max_width=280),
+            tooltip=f"{cat} — {props.get('date', '—')}",
+        ).add_to(group)
+
+    group.add_to(map_obj)
+    return map_obj
+
+
 def add_risk_zone_overlay(
     map_obj: folium.Map,
     trajectory_scores: list[dict],

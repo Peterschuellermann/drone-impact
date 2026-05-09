@@ -16,6 +16,7 @@ class AppState:
     infrastructure: InfrastructureIndex
     data_loaded: bool
     population_cells: int
+    strikes: object | None = None
 
 
 def get_app_state(request) -> AppState:
@@ -27,4 +28,5 @@ def get_app_state(request) -> AppState:
         infrastructure=s.infrastructure,
         data_loaded=s.data_loaded,
         population_cells=s.population_cells,
+        strikes=getattr(s, "strikes", None),
     )

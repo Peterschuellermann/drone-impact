@@ -113,6 +113,7 @@ data:
   dem_path: "./data/ukraine_dem.tif"
   infrastructure_path: "./data/ukraine_infra.geojson"
   buildings_path: "./data/ukraine_buildings.geojson"
+  strikes_path: "./data/ukraine_strikes.geojson"
 
 dashboard:
   api_endpoint: "http://localhost:8000"

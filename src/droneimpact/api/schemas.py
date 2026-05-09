@@ -150,3 +150,18 @@ class PointImpactResponse(BaseModel):
     modes: dict[str, PointImpactModeResult]
     combined_danger_zone: dict
     metadata: dict
+
+
+# --- Strike locations endpoint schemas ---
+
+
+class StrikeFeature(BaseModel):
+    type: str = "Feature"
+    geometry: dict
+    properties: dict
+
+
+class StrikeFeatureCollection(BaseModel):
+    type: str = "FeatureCollection"
+    features: list[StrikeFeature]
+    metadata: dict

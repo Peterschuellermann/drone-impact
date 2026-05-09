@@ -159,6 +159,26 @@ def export_geojson(result: dict) -> str:
     return json.dumps(collection, indent=2)
 
 
+def call_strikes_api(
+    south: float,
+    west: float,
+    north: float,
+    east: float,
+    category: str | None = None,
+) -> dict | None:
+    endpoint = get_api_endpoint()
+    params: dict = {"south": south, "west": west, "north": north, "east": east}
+    if category:
+        params["category"] = category
+    try:
+        response = httpx.get(f"{endpoint}/data/strikes", params=params, timeout=10.0)
+        response.raise_for_status()
+        return response.json()
+    except Exception as e:
+        logger.warning("Could not fetch strike locations: %s", e)
+        return None
+
+
 def load_scenarios(config_path: str | Path = "config.yaml") -> list[dict]:
     """Load demo scenarios from config.
 

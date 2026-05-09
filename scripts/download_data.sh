@@ -17,9 +17,9 @@ echo ""
 # ---------------------------------------------------------------------------
 KONTUR_FILE="$DATA_DIR/kontur_ukraine.gpkg"
 if [ -f "$KONTUR_FILE" ]; then
-    echo "[1/3] Kontur population: already exists, skipping"
+    echo "[1/4] Kontur population: already exists, skipping"
 else
-    echo "[1/3] Downloading Kontur population dataset (Ukraine)..."
+    echo "[1/4] Downloading Kontur population dataset (Ukraine)..."
     curl -fSL --progress-bar \
         "https://geodata-eu-central-1-kontur-public.s3.amazonaws.com/kontur_datasets/kontur_population_UA_20231101.gpkg.gz" \
         -o "$TEMP_DIR/kontur_ukraine.gpkg.gz"
@@ -35,9 +35,9 @@ echo ""
 # ---------------------------------------------------------------------------
 DEM_FILE="$DATA_DIR/ukraine_dem.tif"
 if [ -f "$DEM_FILE" ]; then
-    echo "[2/3] DEM: already exists, skipping"
+    echo "[2/4] DEM: already exists, skipping"
 else
-    echo "[2/3] Downloading Copernicus GLO-30 DEM tiles for Ukraine..."
+    echo "[2/4] Downloading Copernicus GLO-30 DEM tiles for Ukraine..."
     DEM_TILE_DIR="$TEMP_DIR/dem_tiles"
     mkdir -p "$DEM_TILE_DIR"
 
@@ -81,9 +81,9 @@ echo ""
 # ---------------------------------------------------------------------------
 INFRA_FILE="$DATA_DIR/ukraine_infra.geojson"
 if [ -f "$INFRA_FILE" ]; then
-    echo "[3/3] OSM infrastructure: already exists, skipping"
+    echo "[3/4] OSM infrastructure: already exists, skipping"
 else
-    echo "[3/3] Downloading OpenStreetMap Ukraine extract..."
+    echo "[3/4] Downloading OpenStreetMap Ukraine extract..."
     OSM_PBF="$TEMP_DIR/ukraine-latest.osm.pbf"
 
     if [ ! -f "$OSM_PBF" ]; then
@@ -98,6 +98,19 @@ else
     echo "      Done: $(du -h "$INFRA_FILE" | cut -f1)"
     echo "      Cleaning up PBF..."
     rm "$OSM_PBF"
+fi
+echo ""
+
+# ---------------------------------------------------------------------------
+# 4. Ukraine Strike Locations (Bellingcat)
+# ---------------------------------------------------------------------------
+STRIKES_FILE="$DATA_DIR/ukraine_strikes.geojson"
+if [ -f "$STRIKES_FILE" ]; then
+    echo "[4/4] Strike locations: already exists, skipping"
+else
+    echo "[4/4] Ingesting strike locations from Bellingcat..."
+    python "$SCRIPT_DIR/ingest_strikes.py" --output "$STRIKES_FILE"
+    echo "      Done: $(wc -l < "$STRIKES_FILE") lines"
 fi
 echo ""
 
