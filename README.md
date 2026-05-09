@@ -10,7 +10,7 @@ When an air defence unit shoots down a drone, the intercept location determines 
 
 1. The operator provides the drone's current state vector: latitude, longitude, altitude, heading, and speed.
 2. The system discretises the trajectory into evaluation points (default: every 500 m).
-3. For each point, a Monte Carlo simulation (10,000 samples) models three intercept outcomes:
+3. For each point, a Monte Carlo simulation (2,000 samples, configurable) models three intercept outcomes:
    - **Propulsion loss** — engine destroyed, drone glides to impact
    - **Loss of control** — avionics destroyed, drone flies erratically
    - **Break apart** — structural failure, warhead tumbles ballistically
