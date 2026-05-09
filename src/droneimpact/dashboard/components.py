@@ -389,22 +389,92 @@ def make_batch_map(batch_result: dict) -> folium.Map:
         scores = drone_result["trajectory_scores"]
         rec = drone_result["recommended_engagement"]
 
-        group = folium.FeatureGroup(name=drone_id, show=True)
+        traj_group = folium.FeatureGroup(name=f"{drone_id} — Trajectory", show=True)
 
         coords = [[pt["lat"], pt["lon"]] for pt in scores]
         if coords:
-            folium.PolyLine(coords, color=colour, weight=3, opacity=0.7).add_to(group)
-            add_direction_arrows(m, coords, color=colour, group=group)
+            folium.PolyLine(coords, color=colour, weight=3, opacity=0.7).add_to(traj_group)
+            add_direction_arrows(m, coords, color=colour, group=traj_group)
             all_lats.extend(pt["lat"] for pt in scores)
             all_lons.extend(pt["lon"] for pt in scores)
+
+        if scores:
+            folium.CircleMarker(
+                [scores[0]["lat"], scores[0]["lon"]],
+                radius=6, color="#22c55e", fill=True, fill_opacity=0.9,
+                tooltip=f"{drone_id} Start",
+            ).add_to(traj_group)
+            folium.CircleMarker(
+                [scores[-1]["lat"], scores[-1]["lon"]],
+                radius=6, color="#ef4444", fill=True, fill_opacity=0.9,
+                tooltip=f"{drone_id} End",
+            ).add_to(traj_group)
 
         folium.Marker(
             [rec["lat"], rec["lon"]],
             icon=folium.Icon(color="red", icon="star", prefix="fa"),
-            tooltip=f"{drone_id} — Casualties: {rec['expected_casualties']:.3f}",
-        ).add_to(group)
+            tooltip=f"{drone_id} RECOMMENDED — Casualties: {rec['expected_casualties']:.3f}",
+        ).add_to(traj_group)
 
-        group.add_to(m)
+        traj_group.add_to(m)
+
+        eval_group = folium.FeatureGroup(name=f"{drone_id} — Eval Points", show=False)
+        max_cas = max((pt["expected_casualties"] for pt in scores), default=1.0) or 1.0
+        for pt in scores:
+            r = 3 + 5 * (pt["expected_casualties"] / max_cas)
+            folium.CircleMarker(
+                [pt["lat"], pt["lon"]],
+                radius=r, color=colour, fill=True, fill_opacity=0.4, weight=1,
+                tooltip=f"{drone_id} | {_eval_point_tooltip(pt)}",
+            ).add_to(eval_group)
+        eval_group.add_to(m)
+
+        impact_group = folium.FeatureGroup(name=f"{drone_id} — Impact Ellipses", show=False)
+        for dist in drone_result.get("impact_distributions", []):
+            if dist["point_index"] != rec["point_index"]:
+                continue
+            ellipse = dist["impact_ellipse"]
+            mode = dist["mode"]
+            mode_colour = MODE_COLOURS.get(mode, "#888888")
+            folium.Circle(
+                [ellipse["centre_lat"], ellipse["centre_lon"]],
+                radius=ellipse["semi_major_m"],
+                color=mode_colour, fill=True, fill_opacity=0.15,
+                tooltip=f"{drone_id} — {MODE_LABELS.get(mode, mode)} CEP",
+            ).add_to(impact_group)
+        impact_group.add_to(m)
+
+        risk_zones = drone_result.get("risk_zones", [])
+        if risk_zones:
+            risk_group = folium.FeatureGroup(name=f"{drone_id} — Risk Zones", show=True)
+            score_by_index = {pt["point_index"]: pt for pt in scores}
+            for rz in risk_zones:
+                segment = []
+                for idx in range(rz["start_index"], rz["end_index"] + 1):
+                    pt = score_by_index.get(idx)
+                    if pt:
+                        segment.append([pt["lat"], pt["lon"]])
+                if len(segment) >= 2:
+                    folium.PolyLine(
+                        segment, color="#dc2626", weight=8, opacity=0.5,
+                        tooltip=f"{drone_id} Risk zone: peak {rz.get('peak_expected_casualties', 0):.4f}",
+                    ).add_to(risk_group)
+            risk_group.add_to(m)
+
+        ranked = drone_result.get("ranked_engagements", [])
+        if ranked:
+            ranked_group = folium.FeatureGroup(name=f"{drone_id} — Ranked Points", show=False)
+            for re in ranked:
+                folium.Marker(
+                    [re["lat"], re["lon"]],
+                    icon=folium.DivIcon(
+                        html=f'<div style="font-size:12px;font-weight:bold;color:{colour};'
+                             f'text-shadow:1px 1px 0 #fff,-1px 1px 0 #fff">{re["rank"]}</div>',
+                        icon_size=(20, 20), icon_anchor=(10, 10),
+                    ),
+                    tooltip=f"{drone_id} #{re['rank']} — Casualties: {re['expected_casualties']:.3f}",
+                ).add_to(ranked_group)
+            ranked_group.add_to(m)
 
     if all_lats:
         m.fit_bounds([
