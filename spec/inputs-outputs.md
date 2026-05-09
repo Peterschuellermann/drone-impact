@@ -22,7 +22,8 @@ Altitudes are **metres above mean sea level (MSL)** in the API. The physics engi
   },
   "max_range_m": 250000,
   "evaluation_spacing_m": 500,
-  "include_heatmap": false
+  "include_heatmap": false,
+  "n_monte_carlo_samples": 2000
 }
 ```
 
@@ -37,6 +38,7 @@ Altitudes are **metres above mean sea level (MSL)** in the API. The physics engi
 | `max_range_m` | int | No | Maximum distance to evaluate along trajectory. Default: 250,000 m (250 km) |
 | `evaluation_spacing_m` | int | No | Distance between consecutive evaluation points. Default: 500 m |
 | `include_heatmap` | bool | No | If true, include per-cell impact probability GeoJSON in response. Default: false |
+| `n_monte_carlo_samples` | int | No | Number of Monte Carlo samples per physics mode per trajectory point. Overrides the server config value. Range: [100, 5000]. Default: server config value (typically 2000) |
 
 ### Validation Rules
 
@@ -45,6 +47,7 @@ Altitudes are **metres above mean sea level (MSL)** in the API. The physics engi
 - `heading_deg` must be in [0, 360)
 - lat/lon must be finite and within plausible geographic bounds
 - `evaluation_spacing_m` must be in [100, 5000]
+- `n_monte_carlo_samples` must be in [100, 5000] if provided
 
 ---
 
@@ -198,6 +201,32 @@ Altitudes are **metres above mean sea level (MSL)** in the API. The physics engi
 ```
 
 For async jobs, the endpoint returns `{ "batch_id": "...", "status": "processing" }` immediately. Poll `GET /batch/{batch_id}` for results.
+
+---
+
+## Point Impact Input (`POST /analyze/point-impact`)
+
+Compute impact distributions for a single trajectory point without a full trajectory scan.
+
+```json
+{
+  "lat": 48.3794,
+  "lon": 31.1656,
+  "altitude_m": 400,
+  "heading_deg": 315.0,
+  "speed_m_s": 51.4,
+  "n_monte_carlo_samples": 2000
+}
+```
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `lat` | float | Yes | WGS84 latitude, decimal degrees |
+| `lon` | float | Yes | WGS84 longitude, decimal degrees |
+| `altitude_m` | float | Yes | Altitude MSL in metres |
+| `heading_deg` | float | Yes | True heading, 0–360°, clockwise from north |
+| `speed_m_s` | float | Yes | Ground speed in m/s |
+| `n_monte_carlo_samples` | int | No | Number of Monte Carlo samples per physics mode. Overrides the server config value. Range: [100, 5000]. Default: server config value |
 
 ---
 

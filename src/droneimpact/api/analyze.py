@@ -88,11 +88,13 @@ def analyze_single(body: SingleDroneRequest, request: Request) -> SingleDroneRes
     )
     scoring_engine = ScoringEngine(config=state.config)
 
+    n_samples = body.n_monte_carlo_samples or state.config.physics.n_monte_carlo_samples
     result = scoring_engine.score_trajectory(
         trajectory=trajectory,
         dem=state.dem,
         casualty_engine=casualty_engine,
         intercept_point_origin=(sv.lat, sv.lon),
+        n_samples=n_samples,
     )
 
     elapsed_ms = (time.perf_counter() - t_start) * 1000
@@ -132,7 +134,7 @@ def analyze_point_impact(body: PointImpactRequest, request: Request) -> PointImp
         config=state.config.casualty,
     )
     scoring_engine = ScoringEngine(config=state.config)
-    n_samples = state.config.physics.n_monte_carlo_samples
+    n_samples = body.n_monte_carlo_samples or state.config.physics.n_monte_carlo_samples
     rng = np.random.default_rng()
 
     ps, dists = scoring_engine._score_point(

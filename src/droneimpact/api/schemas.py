@@ -17,6 +17,7 @@ class SingleDroneRequest(BaseModel):
     max_range_m: int = Field(default=250_000, ge=1_000, le=1_000_000)
     evaluation_spacing_m: int = Field(default=500, ge=100, le=5_000)
     include_heatmap: bool = False
+    n_monte_carlo_samples: int | None = Field(default=None, ge=100, le=5000)
 
 
 class ModeBreakdown(BaseModel):
@@ -135,6 +136,7 @@ class PointImpactRequest(BaseModel):
     altitude_m: float = Field(gt=0, le=10_000)
     heading_deg: float = Field(ge=0, lt=360)
     speed_m_s: float = Field(ge=20, le=300)
+    n_monte_carlo_samples: int | None = Field(default=None, ge=100, le=5000)
 
 
 class PointImpactModeResult(BaseModel):

@@ -387,6 +387,7 @@ class ScoringEngine:
         casualty_engine: CasualtyEngine,
         intercept_point_origin: tuple[float, float],
         rng: np.random.Generator | None = None,
+        n_samples: int | None = None,
     ) -> TrajectoryResult:
         t_start = time.perf_counter()
 
@@ -398,7 +399,7 @@ class ScoringEngine:
 
         phys = self._config.physics
         scoring_cfg = self._config.scoring
-        n_samples = phys.n_monte_carlo_samples
+        n_samples = n_samples if n_samples is not None else phys.n_monte_carlo_samples
 
         miss_casualties = self._compute_miss_casualties(
             trajectory[-1], dem, casualty_engine, n_samples, rng,

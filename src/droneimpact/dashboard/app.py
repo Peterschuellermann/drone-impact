@@ -82,22 +82,25 @@ def _render_single_drone():
         st.subheader("Analysis Parameters")
         evaluation_spacing_m = st.slider("Evaluation spacing (m)", 100, 5000, 500, step=100)
         max_range_m = st.slider("Max range (km)", 1, 500, default_range_km) * 1000
+        n_mc_samples = st.slider("Monte Carlo samples", 100, 5000, 2000, step=100)
+        if n_mc_samples > 3000:
+            st.caption("⚠ High sample counts may exceed the 500 ms latency budget.")
 
         analyze_btn = st.button("Analyze", type="primary", width="stretch") or auto_submit
 
     @st.cache_data(ttl=300, show_spinner=False)
-    def _cached_api_call(lat, lon, altitude_m, heading_deg, speed_m_s, _spacing, _range):
+    def _cached_api_call(lat, lon, altitude_m, heading_deg, speed_m_s, _spacing, _range, _n_mc):
         return call_api({
             "lat": lat, "lon": lon, "altitude_m": altitude_m,
             "heading_deg": heading_deg, "speed_m_s": speed_m_s,
-        })
+        }, n_monte_carlo_samples=_n_mc)
 
     if analyze_btn:
         with st.spinner("Running analysis..."):
             try:
                 result = _cached_api_call(
                     lat, lon, altitude_m, heading_deg, speed_m_s,
-                    evaluation_spacing_m, max_range_m,
+                    evaluation_spacing_m, max_range_m, n_mc_samples,
                 )
                 st.session_state["result"] = result
             except Exception as e:
@@ -175,6 +178,7 @@ def _render_single_drone():
                         "altitude_m": selected_pt["altitude_m"],
                         "heading_deg": selected_pt.get("heading_deg", heading_deg),
                         "speed_m_s": selected_pt.get("speed_m_s", speed_m_s),
+                        "n_monte_carlo_samples": n_mc_samples,
                     })
                     add_fallout_overlay(traj_map, impact_data)
                 except Exception as e:
@@ -266,12 +270,19 @@ def _render_batch():
     st.title("DroneImpact — Batch Analysis")
 
     with st.sidebar:
+        n_mc_samples_batch = st.slider("Monte Carlo samples", 100, 5000, 2000, step=100,
+                                       key="batch_n_mc_samples")
+        if n_mc_samples_batch > 3000:
+            st.caption("⚠ High sample counts may exceed the 500 ms latency budget.")
         drones = render_batch_input()
 
     if drones is not None:
+        drones_with_mc = [
+            {**d, "n_monte_carlo_samples": n_mc_samples_batch} for d in drones
+        ]
         with st.spinner(f"Analysing {len(drones)} drones..."):
             try:
-                batch_result = call_batch_api(drones)
+                batch_result = call_batch_api(drones_with_mc)
                 st.session_state["batch_result"] = batch_result
             except Exception as e:
                 st.error(f"Batch API error: {e}")
@@ -344,6 +355,7 @@ def _render_batch():
                         "altitude_m": selected_pt["altitude_m"],
                         "heading_deg": pt_heading,
                         "speed_m_s": pt_speed,
+                        "n_monte_carlo_samples": n_mc_samples_batch,
                     })
                     add_fallout_overlay(traj_map, impact_data)
                 except Exception as e:
