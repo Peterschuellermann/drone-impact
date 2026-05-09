@@ -21,6 +21,7 @@ from droneimpact.scoring.types import (
     ImpactDistribution,
     ModeScore,
     PointScore,
+    RankedEngagement,
     RecommendedEngagement,
     RiskZone,
     TrajectoryResult,
@@ -48,6 +49,8 @@ def clear_miss_cache() -> None:
 # --- Coordinate helpers ---
 
 def _enu_to_wgs84_fast(enu: np.ndarray, lat: float, lon: float) -> np.ndarray:
+    valid = np.isfinite(enu).all(axis=1)
+    enu = enu[valid]
     cos_lat = np.cos(np.radians(lat))
     out_lat = lat + enu[:, 1] / 111_000.0
     out_lon = lon + enu[:, 0] / (111_000.0 * cos_lat)
@@ -298,7 +301,11 @@ class ScoringEngine:
         if not eligible:
             eligible = [point_scores[0]]
 
-        best_constrained = min(eligible, key=lambda ps: ps.engagement_score)
+        # Sort eligible points by engagement_score ascending to get ranked list
+        eligible_sorted = sorted(eligible, key=lambda ps: ps.engagement_score)
+        top_eligible = eligible_sorted[:5]
+
+        best_constrained = top_eligible[0]
         best_unconstrained = min(point_scores, key=lambda ps: ps.engagement_score)
         is_constrained = best_constrained.point_index != best_unconstrained.point_index
 
@@ -315,6 +322,28 @@ class ScoringEngine:
             engagement_score=best_constrained.engagement_score,
             reasoning=reasoning,
         )
+
+        # Build ranked engagements list (rank 1 = best, up to top 5)
+        ranked_engagements: list[RankedEngagement] = []
+        for rank, ps in enumerate(top_eligible, start=1):
+            if rank == 1:
+                pt_reasoning = reasoning
+            else:
+                base_reasoning = explain(ps, point_scores, zones, is_constrained=False)
+                pt_reasoning = (
+                    f"Fallback option if points 1–{rank - 1} are missed. {base_reasoning}"
+                )
+            ranked_engagements.append(RankedEngagement(
+                rank=rank,
+                point_index=ps.point_index,
+                lat=ps.lat,
+                lon=ps.lon,
+                altitude_m=ps.altitude_m,
+                distance_from_current_m=ps.distance_from_start_m,
+                expected_casualties=ps.expected_casualties,
+                engagement_score=ps.engagement_score,
+                reasoning=pt_reasoning,
+            ))
 
         unconstrained_optimum = None
         if is_constrained:
@@ -346,6 +375,7 @@ class ScoringEngine:
             engagement_zones=zones,
             risk_zones=risk_zones,
             unconstrained_optimum=unconstrained_optimum,
+            ranked_engagements=ranked_engagements,
         )
 
     # --- Main entry point ---

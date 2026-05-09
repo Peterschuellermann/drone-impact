@@ -128,6 +128,41 @@ def _render_single_drone():
                 result.get("risk_zones", []),
             )
 
+            # Add ranked interception point markers (ranks 2-5; rank 1 is the red star)
+            _ranked_marker_colors = {
+                2: ("#f97316", "white"),   # orange
+                3: ("#eab308", "black"),   # yellow
+                4: ("#3b82f6", "white"),   # blue
+                5: ("#a855f7", "white"),   # purple
+            }
+            for re in result.get("ranked_engagements", [])[1:]:
+                rank = re["rank"]
+                color, text_color = _ranked_marker_colors.get(rank, ("#6b7280", "white"))
+                icon_html = (
+                    f'<div style="'
+                    f'background-color:{color};color:{text_color};'
+                    f'border-radius:50%;width:26px;height:26px;'
+                    f'display:flex;align-items:center;justify-content:center;'
+                    f'font-weight:bold;font-size:14px;border:2px solid white;'
+                    f'box-shadow:0 1px 3px rgba(0,0,0,0.4);">'
+                    f'{rank}</div>'
+                )
+                popup_html = (
+                    f"<b>Rank {rank} interception point</b><br>"
+                    f"Expected casualties: {re['expected_casualties']:.4f}<br>"
+                    f"{re['reasoning']}"
+                )
+                folium.Marker(
+                    location=[re["lat"], re["lon"]],
+                    icon=folium.DivIcon(
+                        html=icon_html,
+                        icon_size=(26, 26),
+                        icon_anchor=(13, 13),
+                    ),
+                    popup=folium.Popup(popup_html, max_width=300),
+                    tooltip=f"Rank {rank} fallback interception point",
+                ).add_to(traj_map)
+
             st.caption("Click an evaluation point to inspect its fallout area.")
             traj_data = st_folium(
                 traj_map,

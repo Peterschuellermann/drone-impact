@@ -66,6 +66,18 @@ class RecommendedEngagementSchema(BaseModel):
     reasoning: str
 
 
+class RankedEngagementSchema(BaseModel):
+    rank: int
+    point_index: int
+    lat: float
+    lon: float
+    altitude_m: float
+    distance_from_current_m: float
+    expected_casualties: float
+    engagement_score: float
+    reasoning: str
+
+
 class EngagementZoneSchema(BaseModel):
     classification: str
     start_index: int
@@ -105,6 +117,7 @@ class SingleDroneResponse(BaseModel):
     drone_id: str | None
     computed_at_utc: str
     recommended_engagement: RecommendedEngagementSchema
+    ranked_engagements: list[RankedEngagementSchema] = []
     trajectory_scores: list[TrajectoryPointScore]
     impact_distributions: list[ImpactDistributionSchema]
     metadata: MetadataSchema
