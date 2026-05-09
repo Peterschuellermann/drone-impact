@@ -2,11 +2,15 @@ from __future__ import annotations
 
 import json
 
+import folium
 import plotly.graph_objects as go
 import pytest
 
 from droneimpact.dashboard.components import (
+    _bearing,
+    add_direction_arrows,
     compute_fallout_bounds,
+    make_coloured_trajectory,
     make_impact_scatter,
     make_risk_profile,
     make_stats_panel,
@@ -264,3 +268,59 @@ class TestExportGeoJSON:
         data = json.loads(export_geojson(sample_result))
         # 1 trajectory line + 3 evaluation points + 1 recommended
         assert len(data["features"]) == 5
+
+
+class TestBearing:
+    def test_east(self):
+        b = _bearing(0.0, 0.0, 0.0, 1.0)
+        assert abs(b - 90.0) < 0.1
+
+    def test_north(self):
+        b = _bearing(0.0, 0.0, 1.0, 0.0)
+        assert abs(b) < 0.1
+
+    def test_south(self):
+        b = _bearing(1.0, 0.0, 0.0, 0.0)
+        assert abs(b - 180.0) < 0.1
+
+    def test_west(self):
+        b = _bearing(0.0, 1.0, 0.0, 0.0)
+        assert abs(b - 270.0) < 0.1
+
+
+class TestDirectionArrows:
+    def test_no_arrows_for_few_points(self):
+        m = folium.Map()
+        add_direction_arrows(m, [[48.5, 35.0]])
+        add_direction_arrows(m, [[48.5, 35.0], [48.6, 35.0]])
+        html = m._repr_html_()
+        assert "RegularPolygonMarker" not in html
+
+    def test_arrows_added_for_multiple_points(self):
+        m = folium.Map()
+        points = [[48.5 + i * 0.01, 35.0] for i in range(20)]
+        add_direction_arrows(m, points)
+        html = m._repr_html_()
+        assert "regularPolygonMarker" in html.lower() or "L.RegularPolygonMarker" in html
+
+    def test_arrow_count_bounded(self):
+        m = folium.Map()
+        points = [[48.5 + i * 0.001, 35.0] for i in range(100)]
+        group = folium.FeatureGroup()
+        add_direction_arrows(m, points, group=group)
+        children = list(group._children.values())
+        arrow_count = sum(
+            1 for c in children
+            if isinstance(c, folium.RegularPolygonMarker)
+        )
+        assert 2 <= arrow_count <= 12
+
+    def test_trajectory_map_contains_arrows(self, sample_result):
+        m = make_trajectory_map(sample_result)
+        html = m._repr_html_()
+        assert "RegularPolygonMarker" in html or "regularPolygonMarker" in html.lower()
+
+    def test_coloured_trajectory_contains_arrows(self, sample_result):
+        m = make_coloured_trajectory(sample_result)
+        html = m._repr_html_()
+        assert "RegularPolygonMarker" in html or "regularPolygonMarker" in html.lower()

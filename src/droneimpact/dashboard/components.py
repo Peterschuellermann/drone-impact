@@ -6,6 +6,45 @@ import folium
 import plotly.graph_objects as go
 
 
+def _bearing(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
+    lat1, lon1, lat2, lon2 = (math.radians(v) for v in (lat1, lon1, lat2, lon2))
+    dlon = lon2 - lon1
+    x = math.sin(dlon) * math.cos(lat2)
+    y = math.cos(lat1) * math.sin(lat2) - math.sin(lat1) * math.cos(lat2) * math.cos(dlon)
+    return math.degrees(math.atan2(x, y)) % 360
+
+
+def add_direction_arrows(
+    map_obj: folium.Map,
+    points: list[list[float]],
+    color: str = "#3b82f6",
+    group: folium.FeatureGroup | None = None,
+) -> None:
+    if len(points) < 3:
+        return
+
+    interval = max(1, len(points) // 10)
+    target = group if group is not None else map_obj
+
+    for idx in range(interval, len(points) - 1, interval):
+        p0 = points[idx]
+        p1 = points[idx + 1] if idx + 1 < len(points) else points[idx]
+        bearing = _bearing(p0[0], p0[1], p1[0], p1[1])
+
+        folium.RegularPolygonMarker(
+            location=p0,
+            number_of_sides=3,
+            radius=6,
+            rotation=bearing - 90,
+            color=color,
+            fill=True,
+            fill_color=color,
+            fill_opacity=0.5,
+            weight=1,
+            opacity=0.5,
+        ).add_to(target)
+
+
 MODE_COLOURS = {
     "propulsion_loss": "#3b82f6",
     "loss_of_control": "#f59e0b",
@@ -70,6 +109,7 @@ def make_trajectory_map(
     coords = [[pt["lat"], pt["lon"]] for pt in scores]
     if coords:
         folium.PolyLine(coords, color="#3b82f6", weight=3, opacity=0.8).add_to(trajectory_group)
+        add_direction_arrows(m, coords, color="#3b82f6", group=trajectory_group)
 
     if scores:
         folium.CircleMarker(
@@ -355,6 +395,7 @@ def make_batch_map(batch_result: dict) -> folium.Map:
         coords = [[pt["lat"], pt["lon"]] for pt in scores]
         if coords:
             folium.PolyLine(coords, color=colour, weight=3, opacity=0.7).add_to(group)
+            add_direction_arrows(m, coords, color=colour, group=group)
             all_lats.extend(pt["lat"] for pt in scores)
             all_lons.extend(pt["lon"] for pt in scores)
 
@@ -472,6 +513,7 @@ def make_coloured_trajectory(
     mid = scores[len(scores) // 2]
     m = folium.Map(location=[mid["lat"], mid["lon"]], zoom_start=8, tiles="OpenStreetMap")
 
+    coords = []
     for i in range(len(scores) - 1):
         a, b = scores[i], scores[i + 1]
         colour = _score_colour(a["engagement_score"], max_score)
@@ -479,6 +521,9 @@ def make_coloured_trajectory(
             [[a["lat"], a["lon"]], [b["lat"], b["lon"]]],
             color=colour, weight=5, opacity=0.9,
         ).add_to(m)
+        coords.append([a["lat"], a["lon"]])
+    coords.append([scores[-1]["lat"], scores[-1]["lon"]])
+    add_direction_arrows(m, coords, color="#374151")
 
     folium.Marker(
         [rec["lat"], rec["lon"]],
