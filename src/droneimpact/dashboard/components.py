@@ -179,6 +179,128 @@ def make_trajectory_map(
     return m
 
 
+def _probability_colour(p: float) -> str:
+    r = int(239 * p + 59 * (1 - p))
+    g = int(68 * p + 130 * (1 - p))
+    b = int(68 * p + 246 * (1 - p))
+    return f"#{r:02x}{g:02x}{b:02x}"
+
+
+def make_multi_trajectory_map(
+    drone_lat: float,
+    drone_lon: float,
+    candidates: list[dict],
+    scored_result: dict | None = None,
+    scored_candidate_idx: int = 0,
+) -> folium.Map:
+    m = folium.Map(location=[drone_lat, drone_lon], zoom_start=7, tiles="OpenStreetMap")
+
+    folium.CircleMarker(
+        [drone_lat, drone_lon],
+        radius=8,
+        color="#3b82f6",
+        fill=True,
+        fill_opacity=1.0,
+        weight=2,
+        tooltip="Drone position",
+    ).add_to(m)
+
+    all_lats = [drone_lat]
+    all_lons = [drone_lon]
+
+    for i, candidate in enumerate(candidates):
+        target = candidate["target"]
+        probability = candidate["probability"]
+        distance_m = candidate["distance_m"]
+        waypoints = candidate["waypoints"]
+        is_selected = (i == scored_candidate_idx)
+
+        colour = _probability_colour(probability)
+
+        if is_selected:
+            weight, opacity, dash_array = 4, 1.0, None
+        elif i < 3:
+            weight, opacity, dash_array = 2, 0.6, None
+        else:
+            weight, opacity, dash_array = 1, 0.3, "6 4"
+
+        coords = [[drone_lat, drone_lon]]
+        for wp in waypoints:
+            coords.append([wp["lat"], wp["lon"]])
+            all_lats.append(wp["lat"])
+            all_lons.append(wp["lon"])
+        coords.append([target["lat"], target["lon"]])
+        all_lats.append(target["lat"])
+        all_lons.append(target["lon"])
+
+        show_group = i < 5
+        group_name = f"Target {i+1}: {target['name'][:20]}... ({probability:.0%})"
+        fg = folium.FeatureGroup(name=group_name, show=show_group)
+
+        poly_kwargs = dict(
+            locations=coords,
+            color=colour,
+            weight=weight,
+            opacity=opacity,
+        )
+        if dash_array:
+            poly_kwargs["dash_array"] = dash_array
+        folium.PolyLine(**poly_kwargs).add_to(fg)
+
+        historical_strikes = target.get("historical_strikes", 0)
+        target_radius = 5 + 3 * (min(historical_strikes, 20) / 20)
+        folium.CircleMarker(
+            [target["lat"], target["lon"]],
+            radius=target_radius,
+            color=colour,
+            fill=True,
+            fill_opacity=0.8,
+            weight=2,
+            tooltip=f"{target['name']} | {probability:.0%} | {distance_m/1000:.0f} km",
+        ).add_to(fg)
+
+        if len(coords) >= 2:
+            mid_idx = len(coords) // 2
+            mid_pt = coords[mid_idx]
+            folium.Marker(
+                location=mid_pt,
+                icon=folium.DivIcon(
+                    html=(
+                        f'<div style="font-size:10px;font-weight:bold;color:{colour};'
+                        f'text-shadow:1px 1px 2px white,-1px -1px 2px white;">'
+                        f'{probability:.0%}</div>'
+                    ),
+                    icon_size=(40, 16),
+                    icon_anchor=(20, 8),
+                ),
+            ).add_to(fg)
+
+        fg.add_to(m)
+
+    if scored_result is not None:
+        add_risk_zone_overlay(m, scored_result["trajectory_scores"], scored_result.get("risk_zones", []))
+        rec = scored_result["recommended_engagement"]
+        folium.Marker(
+            [rec["lat"], rec["lon"]],
+            icon=folium.Icon(color="red", icon="star", prefix="fa"),
+            tooltip=(
+                f"RECOMMENDED | "
+                f"Casualties: {rec['expected_casualties']:.3f} | "
+                f"Score: {rec['engagement_score']:.3f}"
+            ),
+        ).add_to(m)
+
+    folium.LayerControl().add_to(m)
+
+    if all_lats and all_lons:
+        m.fit_bounds([
+            [min(all_lats) - 0.1, min(all_lons) - 0.1],
+            [max(all_lats) + 0.1, max(all_lons) + 0.1],
+        ])
+
+    return m
+
+
 def make_impact_scatter(result: dict) -> go.Figure:
     rec = result["recommended_engagement"]
     rec_idx = rec["point_index"]
@@ -377,7 +499,77 @@ def _drone_colour(index: int) -> str:
     return BATCH_PALETTE[index % len(BATCH_PALETTE)]
 
 
-def make_batch_map(batch_result: dict) -> folium.Map:
+def make_drone_overview_map(
+    drones: list[dict],
+    selected_idx: int | None = None,
+) -> folium.Map:
+    if not drones:
+        return folium.Map(location=[48.5, 35.0], zoom_start=6)
+
+    m = folium.Map(tiles="OpenStreetMap")
+    all_lats, all_lons = [], []
+
+    for i, d in enumerate(drones):
+        traj = d.get("trajectory", d)
+        lat, lon = traj["lat"], traj["lon"]
+        heading = traj["heading_deg"]
+        drone_id = d.get("drone_id", f"Drone {i + 1}")
+        colour = _drone_colour(i)
+        is_selected = (i == selected_idx)
+
+        all_lats.append(lat)
+        all_lons.append(lon)
+
+        radius = 10 if is_selected else 6
+        weight = 4 if is_selected else 2
+        opacity = 1.0 if is_selected else 0.7
+
+        folium.CircleMarker(
+            [lat, lon],
+            radius=radius,
+            color=colour,
+            fill=True,
+            fill_opacity=opacity,
+            weight=weight,
+            tooltip=(
+                f"{drone_id} | "
+                f"Alt: {traj['altitude_m']:.0f}m | "
+                f"Hdg: {heading:.0f}° | "
+                f"Spd: {traj['speed_m_s']:.1f} m/s"
+            ),
+        ).add_to(m)
+
+        arrow_len = 0.15
+        end_lat = lat + arrow_len * math.cos(math.radians(heading))
+        end_lon = lon + arrow_len * math.sin(math.radians(heading)) / math.cos(math.radians(lat))
+        folium.PolyLine(
+            [[lat, lon], [end_lat, end_lon]],
+            color=colour, weight=3 if is_selected else 2, opacity=opacity,
+        ).add_to(m)
+
+        folium.Marker(
+            [lat, lon],
+            icon=folium.DivIcon(
+                html=(
+                    f'<div style="font-size:9px;font-weight:{"bold" if is_selected else "normal"};'
+                    f'color:{colour};text-shadow:1px 1px 2px white,-1px -1px 2px white;'
+                    f'white-space:nowrap;">{drone_id}</div>'
+                ),
+                icon_size=(80, 14),
+                icon_anchor=(-5, 14),
+            ),
+        ).add_to(m)
+
+    if all_lats:
+        m.fit_bounds([
+            [min(all_lats) - 0.2, min(all_lons) - 0.2],
+            [max(all_lats) + 0.2, max(all_lons) + 0.2],
+        ])
+
+    return m
+
+
+def make_batch_map(batch_result: dict, selected_drone_idx: int | None = None) -> folium.Map:
     results = batch_result.get("results", [])
     if not results:
         return folium.Map(location=[48.5, 35.0], zoom_start=6)
@@ -390,12 +582,16 @@ def make_batch_map(batch_result: dict) -> folium.Map:
         drone_id = drone_result.get("drone_id") or f"Drone {i + 1}"
         scores = drone_result["trajectory_scores"]
         rec = drone_result["recommended_engagement"]
+        is_selected = (i == selected_drone_idx)
+
+        line_weight = 5 if is_selected else 3
+        line_opacity = 1.0 if is_selected else 0.7
 
         traj_group = folium.FeatureGroup(name=f"{drone_id} — Trajectory", show=True)
 
         coords = [[pt["lat"], pt["lon"]] for pt in scores]
         if coords:
-            folium.PolyLine(coords, color=colour, weight=3, opacity=0.7).add_to(traj_group)
+            folium.PolyLine(coords, color=colour, weight=line_weight, opacity=line_opacity).add_to(traj_group)
             add_direction_arrows(m, coords, color=colour, group=traj_group)
             all_lats.extend(pt["lat"] for pt in scores)
             all_lons.extend(pt["lon"] for pt in scores)

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import logging
+import math
 import os
 import time
 from pathlib import Path
@@ -206,6 +207,102 @@ def load_scenarios(config_path: str | Path = "config.yaml") -> list[dict]:
                 "speed_m_s": float(s["trajectory"]["speed_m_s"]),
             },
             "max_range_m": s.get("max_range_m", 250_000),
+        })
+
+    return scenarios
+
+
+def compute_bearing(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
+    lat1_r, lon1_r = math.radians(lat1), math.radians(lon1)
+    lat2_r, lon2_r = math.radians(lat2), math.radians(lon2)
+    dlon = lon2_r - lon1_r
+    x = math.sin(dlon) * math.cos(lat2_r)
+    y = math.cos(lat1_r) * math.sin(lat2_r) - math.sin(lat1_r) * math.cos(lat2_r) * math.cos(dlon)
+    return math.degrees(math.atan2(x, y)) % 360
+
+
+def call_predict_targets(
+    lat: float,
+    lon: float,
+    heading_deg: float,
+    speed_m_s: float,
+    altitude_m: float,
+    max_range_m: int = 250_000,
+    max_targets: int = 15,
+) -> dict | None:
+    """Call POST /predict/targets. Returns response dict or None on error."""
+    endpoint = get_api_endpoint()
+    try:
+        response = httpx.post(
+            f"{endpoint}/predict/targets",
+            json={
+                "lat": lat, "lon": lon, "heading_deg": heading_deg,
+                "speed_m_s": speed_m_s, "altitude_m": altitude_m,
+                "max_range_m": max_range_m, "max_targets": max_targets,
+            },
+            timeout=15.0,
+        )
+        response.raise_for_status()
+        return response.json()
+    except Exception as e:
+        logger.warning("Could not fetch target predictions: %s", e)
+        return None
+
+
+def call_strikes_api(
+    south: float,
+    west: float,
+    north: float,
+    east: float,
+    category: str | None = None,
+) -> dict | None:
+    endpoint = get_api_endpoint()
+    params: dict = {"south": south, "west": west, "north": north, "east": east}
+    if category:
+        params["category"] = category
+    try:
+        response = httpx.get(f"{endpoint}/data/strikes", params=params, timeout=10.0)
+        response.raise_for_status()
+        return response.json()
+    except Exception as e:
+        logger.warning("Could not fetch strike locations: %s", e)
+        return None
+
+
+def load_multi_drone_scenarios(config_path: str | Path = "config.yaml") -> list[dict]:
+    path = Path(config_path)
+    if not path.exists():
+        return []
+
+    try:
+        with open(path) as f:
+            raw = yaml.safe_load(f)
+    except Exception:
+        logger.warning("Failed to parse config file %s", path, exc_info=True)
+        return []
+
+    scenarios_raw = raw.get("multi_drone_scenarios", [])
+    if not scenarios_raw:
+        return []
+
+    scenarios = []
+    for s in scenarios_raw:
+        drones = []
+        for d in s.get("drones", []):
+            drones.append({
+                "drone_id": d["drone_id"],
+                "trajectory": {
+                    "lat": float(d["lat"]),
+                    "lon": float(d["lon"]),
+                    "altitude_m": float(d["altitude_m"]),
+                    "heading_deg": float(d["heading_deg"]),
+                    "speed_m_s": float(d["speed_m_s"]),
+                },
+            })
+        scenarios.append({
+            "name": s["name"],
+            "description": s.get("description", ""),
+            "drones": drones,
         })
 
     return scenarios

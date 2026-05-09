@@ -103,18 +103,57 @@ class CasualtyBand(BaseModel):
     probability: float
 
 
+class ShelteringClass(BaseModel):
+    osm_tags: list[str]
+    blast_reduction: float
+    frag_reduction: float
+
+
+class ShelteringConfig(BaseModel):
+    reinforced_concrete: ShelteringClass = ShelteringClass(
+        osm_tags=["apartments", "commercial", "industrial", "public"],
+        blast_reduction=0.80,
+        frag_reduction=0.90,
+    )
+    masonry: ShelteringClass = ShelteringClass(
+        osm_tags=["residential", "office", "retail"],
+        blast_reduction=0.50,
+        frag_reduction=0.70,
+    )
+    light_structure: ShelteringClass = ShelteringClass(
+        osm_tags=["house", "garage", "shed", "farm"],
+        blast_reduction=0.10,
+        frag_reduction=0.30,
+    )
+
+    def tag_to_class(self) -> dict[str, str]:
+        mapping: dict[str, str] = {}
+        for cls_name in ("reinforced_concrete", "masonry", "light_structure"):
+            cls: ShelteringClass = getattr(self, cls_name)
+            for tag in cls.osm_tags:
+                mapping[tag] = cls_name
+        return mapping
+
+    def reductions(self, cls_name: str) -> tuple[float, float]:
+        cls: ShelteringClass = getattr(self, cls_name)
+        return cls.blast_reduction, cls.frag_reduction
+
+
 class CasualtyConfig(BaseModel):
     blast: BlastParams
     fragmentation: FragParams
     infrastructure: InfraConfig
     blast_bands: list[CasualtyBand] | None = None
     frag_bands: list[CasualtyBand] | None = None
+    sheltering: ShelteringConfig = ShelteringConfig()
 
 
 class DataPaths(BaseModel):
     population_path: str
     dem_path: str
     infrastructure_path: str
+    buildings_path: str = ""
+    strikes_path: str | None = None
 
 
 class ScoringConfig(BaseModel):
@@ -140,6 +179,21 @@ class ScenarioConfig(BaseModel):
     description: str
     trajectory: ScenarioTrajectory
     max_range_m: int = 250_000
+
+
+class MultiDroneDef(BaseModel):
+    drone_id: str
+    lat: float
+    lon: float
+    altitude_m: float
+    heading_deg: float
+    speed_m_s: float
+
+
+class MultiDroneScenario(BaseModel):
+    name: str
+    description: str
+    drones: list[MultiDroneDef]
 
 
 class ParallelismConfig(BaseModel):
@@ -177,6 +231,7 @@ class AppConfig(BaseModel):
     data: DataPaths
     scoring: ScoringConfig = ScoringConfig()
     scenarios: list[ScenarioConfig] = []
+    multi_drone_scenarios: list[MultiDroneScenario] = []
     parallelism: ParallelismConfig = ParallelismConfig()
     cache: CacheConfig = CacheConfig()
     dashboard: DashboardConfig = DashboardConfig()
