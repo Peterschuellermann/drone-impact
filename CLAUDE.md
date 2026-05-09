@@ -2,7 +2,7 @@
 
 ## Task Tracking
 
-All remaining tasks and feature plans are tracked as GitHub issues at https://github.com/Peterschuellermann/drone-impact/issues. Issues are labelled by milestone (`v1.1c`, `v1.2`, `v1.3`, `v1.4`) and category (`physics`, `dashboard`, `performance`).
+All remaining tasks and feature plans are tracked as GitHub issues at https://github.com/Peterschuellermann/drone-impact/issues. Issues are labelled by milestone (`1.1.0`, `1.2.0`, `1.3.0`, `1.4.0`) and category (`physics`, `dashboard`, `performance`). Versions follow [Semantic Versioning](https://semver.org/).
 
 **To pick up work:** check the GitHub issues for the next available task.
 
