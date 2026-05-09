@@ -601,8 +601,10 @@ class ScoringEngine:
 
         scored_indices = sorted(scored.keys())
         scores_arr = np.array([scored[i].engagement_score for i in scored_indices])
+        hit_cas_arr = np.array([scored[i].hit_branch_expected_casualties for i in scored_indices])
         all_indices = np.arange(len(trajectory))
         interp_scores = np.interp(all_indices, scored_indices, scores_arr)
+        interp_hit_cas = np.interp(all_indices, scored_indices, hit_cas_arr)
 
         result: list[PointScore] = []
         for i, ps in enumerate(point_scores):
@@ -624,5 +626,6 @@ class ScoringEngine:
                     heading_deg=ps.heading_deg,
                     speed_m_s=ps.speed_m_s,
                     population_within_frag_radius=ps.population_within_frag_radius,
+                    hit_branch_expected_casualties=float(interp_hit_cas[i]),
                 ))
         return result
