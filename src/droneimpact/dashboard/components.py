@@ -498,7 +498,77 @@ def _drone_colour(index: int) -> str:
     return BATCH_PALETTE[index % len(BATCH_PALETTE)]
 
 
-def make_batch_map(batch_result: dict) -> folium.Map:
+def make_drone_overview_map(
+    drones: list[dict],
+    selected_idx: int | None = None,
+) -> folium.Map:
+    if not drones:
+        return folium.Map(location=[48.5, 35.0], zoom_start=6)
+
+    m = folium.Map(tiles="OpenStreetMap")
+    all_lats, all_lons = [], []
+
+    for i, d in enumerate(drones):
+        traj = d.get("trajectory", d)
+        lat, lon = traj["lat"], traj["lon"]
+        heading = traj["heading_deg"]
+        drone_id = d.get("drone_id", f"Drone {i + 1}")
+        colour = _drone_colour(i)
+        is_selected = (i == selected_idx)
+
+        all_lats.append(lat)
+        all_lons.append(lon)
+
+        radius = 10 if is_selected else 6
+        weight = 4 if is_selected else 2
+        opacity = 1.0 if is_selected else 0.7
+
+        folium.CircleMarker(
+            [lat, lon],
+            radius=radius,
+            color=colour,
+            fill=True,
+            fill_opacity=opacity,
+            weight=weight,
+            tooltip=(
+                f"{drone_id} | "
+                f"Alt: {traj['altitude_m']:.0f}m | "
+                f"Hdg: {heading:.0f}° | "
+                f"Spd: {traj['speed_m_s']:.1f} m/s"
+            ),
+        ).add_to(m)
+
+        arrow_len = 0.15
+        end_lat = lat + arrow_len * math.cos(math.radians(heading))
+        end_lon = lon + arrow_len * math.sin(math.radians(heading)) / math.cos(math.radians(lat))
+        folium.PolyLine(
+            [[lat, lon], [end_lat, end_lon]],
+            color=colour, weight=3 if is_selected else 2, opacity=opacity,
+        ).add_to(m)
+
+        folium.Marker(
+            [lat, lon],
+            icon=folium.DivIcon(
+                html=(
+                    f'<div style="font-size:9px;font-weight:{"bold" if is_selected else "normal"};'
+                    f'color:{colour};text-shadow:1px 1px 2px white,-1px -1px 2px white;'
+                    f'white-space:nowrap;">{drone_id}</div>'
+                ),
+                icon_size=(80, 14),
+                icon_anchor=(-5, 14),
+            ),
+        ).add_to(m)
+
+    if all_lats:
+        m.fit_bounds([
+            [min(all_lats) - 0.2, min(all_lons) - 0.2],
+            [max(all_lats) + 0.2, max(all_lons) + 0.2],
+        ])
+
+    return m
+
+
+def make_batch_map(batch_result: dict, selected_drone_idx: int | None = None) -> folium.Map:
     results = batch_result.get("results", [])
     if not results:
         return folium.Map(location=[48.5, 35.0], zoom_start=6)
@@ -511,12 +581,16 @@ def make_batch_map(batch_result: dict) -> folium.Map:
         drone_id = drone_result.get("drone_id") or f"Drone {i + 1}"
         scores = drone_result["trajectory_scores"]
         rec = drone_result["recommended_engagement"]
+        is_selected = (i == selected_drone_idx)
+
+        line_weight = 5 if is_selected else 3
+        line_opacity = 1.0 if is_selected else 0.7
 
         group = folium.FeatureGroup(name=drone_id, show=True)
 
         coords = [[pt["lat"], pt["lon"]] for pt in scores]
         if coords:
-            folium.PolyLine(coords, color=colour, weight=3, opacity=0.7).add_to(group)
+            folium.PolyLine(coords, color=colour, weight=line_weight, opacity=line_opacity).add_to(group)
             add_direction_arrows(m, coords, color=colour, group=group)
             all_lats.extend(pt["lat"] for pt in scores)
             all_lons.extend(pt["lon"] for pt in scores)

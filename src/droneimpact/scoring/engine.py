@@ -229,38 +229,33 @@ class ScoringEngine:
         zones: list[RiskZone] = []
         in_zone = False
         start_idx = 0
+        start_dist = 0.0
         peak = 0.0
+        prev_ps: PointScore | None = None
 
         for ps in point_scores:
             is_high = ps.hit_branch_expected_casualties > threshold
             if is_high and not in_zone:
                 in_zone = True
                 start_idx = ps.point_index
+                start_dist = ps.distance_from_start_m
                 peak = ps.hit_branch_expected_casualties
             elif is_high and in_zone:
                 peak = max(peak, ps.hit_branch_expected_casualties)
             elif not is_high and in_zone:
-                end_idx = ps.point_index - 1
-                start_dist = next(
-                    p.distance_from_start_m for p in point_scores if p.point_index == start_idx
-                )
-                end_dist = next(
-                    p.distance_from_start_m for p in point_scores if p.point_index == end_idx
-                )
+                assert prev_ps is not None
                 zones.append(RiskZone(
                     start_index=start_idx,
-                    end_index=end_idx,
+                    end_index=prev_ps.point_index,
                     start_distance_m=start_dist,
-                    end_distance_m=end_dist,
+                    end_distance_m=prev_ps.distance_from_start_m,
                     peak_expected_casualties=peak,
                 ))
                 in_zone = False
+            prev_ps = ps
 
         if in_zone:
             last = point_scores[-1]
-            start_dist = next(
-                p.distance_from_start_m for p in point_scores if p.point_index == start_idx
-            )
             zones.append(RiskZone(
                 start_index=start_idx,
                 end_index=last.point_index,
@@ -607,8 +602,10 @@ class ScoringEngine:
 
         scored_indices = sorted(scored.keys())
         scores_arr = np.array([scored[i].engagement_score for i in scored_indices])
+        hit_cas_arr = np.array([scored[i].hit_branch_expected_casualties for i in scored_indices])
         all_indices = np.arange(len(trajectory))
         interp_scores = np.interp(all_indices, scored_indices, scores_arr)
+        interp_hit_cas = np.interp(all_indices, scored_indices, hit_cas_arr)
 
         result: list[PointScore] = []
         for i, ps in enumerate(point_scores):
@@ -630,5 +627,6 @@ class ScoringEngine:
                     heading_deg=ps.heading_deg,
                     speed_m_s=ps.speed_m_s,
                     population_within_frag_radius=ps.population_within_frag_radius,
+                    hit_branch_expected_casualties=float(interp_hit_cas[i]),
                 ))
         return result
