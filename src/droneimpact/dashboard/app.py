@@ -225,7 +225,7 @@ def _render_single_drone():
                 traj_map,
                 center=map_center,
                 zoom=map_zoom,
-                width="stretch",
+                use_container_width=True,
                 height=600,
                 returned_objects=["last_object_clicked_tooltip"],
                 key="trajectory_map",
@@ -277,7 +277,7 @@ def _render_single_drone():
                     radius=10, color=frame["colour"], fill=True,
                     fill_opacity=1.0, weight=3,
                 ).add_to(coloured_map)
-                st_folium(coloured_map, width="stretch", height=450, returned_objects=[])
+                st_folium(coloured_map, use_container_width=True, height=450, returned_objects=[])
 
             with col_stats:
                 is_rec = frame["is_recommended"]
@@ -332,7 +332,7 @@ def _render_batch():
         st.error("All drones failed. Check the API and retry.")
         return
 
-    st_folium(make_batch_map(batch_result), width="stretch", height=500, returned_objects=[])
+    st_folium(make_batch_map(batch_result), use_container_width=True, height=500, returned_objects=[])
 
     st.subheader("Priority Ranking")
     rows = make_priority_table(batch_result)
@@ -407,7 +407,7 @@ def _render_batch():
                 traj_map,
                 center=map_center,
                 zoom=map_zoom,
-                width="stretch",
+                use_container_width=True,
                 height=500,
                 returned_objects=["last_object_clicked_tooltip"],
                 key=f"batch_traj_map_{idx}",
@@ -461,7 +461,7 @@ def _render_batch():
                     radius=10, color=frame["colour"], fill=True,
                     fill_opacity=1.0, weight=3,
                 ).add_to(coloured_map)
-                st_folium(coloured_map, width="stretch", height=450, returned_objects=[],
+                st_folium(coloured_map, use_container_width=True, height=450, returned_objects=[],
                           key=f"batch_replay_map_{idx}")
 
             with col_stats:
