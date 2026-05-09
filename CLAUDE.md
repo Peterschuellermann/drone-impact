@@ -34,14 +34,15 @@ Rules:
 - **Pull before branching:** `git pull origin develop` (or `main` for hotfixes).
 - If you've been working for a while, pull again before merging to catch changes others have pushed.
 
-### Merging Safely (Multi-Agent)
+### Multi-Agent Concurrency with Worktrees
 
-Multiple agents work in worktrees simultaneously. To avoid blocking each other:
+All worktrees share the same `.git` directory and remote refs. This means:
 
-1. **Do all work in a worktree** — never commit on `main` or `develop` in the primary repo.
-2. **Merge into `develop` from the worktree**, not from the primary working directory.
-3. **Push `develop` to origin** immediately after merging.
-4. **Other agents pull from remote** (`git pull origin develop`) to pick up changes — they never see uncommitted local state.
+- **Each agent works on its own `feature/*` or `fix/*` branch** in an isolated worktree. Agents do not need to track `develop` while working — they branched from it at creation time.
+- **When an agent finishes**, it merges `--no-ff` into `develop` and pushes. This is the only moment `develop` is modified.
+- **Other agents are not affected** — they continue working on their own branches. They do not need to pull or rebase during active work.
+- **Conflicts are resolved at merge time.** If two agents modified the same files, the second agent to merge into `develop` resolves conflicts then — not before.
+- **Never commit directly on `main` or `develop`** in any worktree. Always use a feature/fix branch.
 
 ### Git Worktrees
 
