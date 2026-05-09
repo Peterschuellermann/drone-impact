@@ -1,6 +1,7 @@
 FROM python:3.11-slim
 
-RUN apt-get update && apt-get install -y --no-install-recommends curl \
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    curl gcc g++ libgdal-dev \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
@@ -14,7 +15,7 @@ RUN pip install --no-cache-dir . --no-deps
 
 COPY config.yaml .
 
-RUN python -c "from droneimpact.physics.warmup import warmup_kernels; warmup_kernels()"
+RUN python -c "from droneimpact.physics.warmup import warmup_jit; warmup_jit()"
 
 EXPOSE 8000
 
