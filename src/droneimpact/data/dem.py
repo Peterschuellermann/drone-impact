@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from pathlib import Path
 
 import numpy as np
@@ -13,23 +14,72 @@ class DEMOutOfBoundsError(ValueError):
 
 
 class DEMIndex:
-    def __init__(self, data: np.ndarray | None, transform, crs=None, dataset=None):
-        self._data = data.astype(np.float32) if data is not None else None
-        self._dataset = dataset
-        self._nodata: float | None = None
+    def __init__(
+        self,
+        data: np.ndarray | None,
+        transform,
+        crs=None,
+        *,
+        file_path: str | None = None,
+        nodata: float | None = None,
+        rows: int = 0,
+        cols: int = 0,
+    ):
+        self._data = np.ascontiguousarray(data) if data is not None else None
         self._transform = transform
         self._crs = crs
+        self._file_path = file_path
+        self._dataset = None
+        self._dataset_pid: int | None = None
+        self._nodata = nodata
         if data is not None:
             self._rows, self._cols = data.shape
         else:
-            self._rows = dataset.height
-            self._cols = dataset.width
-            self._nodata = dataset.nodata
+            self._rows = rows
+            self._cols = cols
+
+    def _open_dataset(self):
+        pid = os.getpid()
+        if self._dataset is not None and self._dataset_pid == pid:
+            return self._dataset
+        if self._dataset is not None:
+            try:
+                self._dataset.close()
+            except Exception:
+                pass
+        self._dataset = rasterio.open(self._file_path)
+        self._dataset_pid = pid
+        return self._dataset
+
+    def __getstate__(self):
+        state = self.__dict__.copy()
+        state["_dataset"] = None
+        state["_dataset_pid"] = None
+        return state
+
+    def __setstate__(self, state):
+        self.__dict__.update(state)
+
+    def __del__(self):
+        if getattr(self, "_dataset", None) is not None:
+            try:
+                self._dataset.close()
+            except Exception:
+                pass
 
     @classmethod
     def load_from_file(cls, path: str | Path) -> "DEMIndex":
-        dataset = rasterio.open(path)
-        return cls(None, dataset.transform, dataset.crs, dataset=dataset)
+        resolved = str(Path(path).resolve())
+        with rasterio.open(resolved) as dataset:
+            return cls(
+                data=None,
+                transform=dataset.transform,
+                crs=dataset.crs,
+                file_path=resolved,
+                nodata=dataset.nodata,
+                rows=dataset.height,
+                cols=dataset.width,
+            )
 
     @classmethod
     def from_array(
@@ -46,8 +96,9 @@ class DEMIndex:
         return cls(data, transform)
 
     def _read_block(self, r0: int, c0: int, r1: int, c1: int) -> np.ndarray:
+        ds = self._open_dataset()
         window = rasterio.windows.Window(c0, r0, c1 - c0 + 1, r1 - r0 + 1)
-        block = self._dataset.read(1, window=window).astype(np.float32)
+        block = ds.read(1, window=window).astype(np.float32)
         if self._nodata is not None:
             block = np.where(block == self._nodata, 0.0, block)
         return block

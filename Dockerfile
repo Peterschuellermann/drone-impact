@@ -7,10 +7,15 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 WORKDIR /app
 
 COPY pyproject.toml .
+RUN mkdir -p src/droneimpact && touch src/droneimpact/__init__.py
+RUN pip install --no-cache-dir .
+
 COPY src/ ./src/
-RUN pip install --no-cache-dir -e .
+RUN pip install --no-cache-dir . --no-deps
 
 COPY config.yaml .
+
+RUN python -c "from droneimpact.physics.warmup import warmup_jit; warmup_jit()"
 
 EXPOSE 8000
 

@@ -55,6 +55,19 @@ class RecommendedEngagement:
 
 
 @dataclass
+class RankedEngagement:
+    rank: int
+    point_index: int
+    lat: float
+    lon: float
+    altitude_m: float
+    distance_from_current_m: float
+    expected_casualties: float
+    engagement_score: float
+    reasoning: str
+
+
+@dataclass
 class EngagementZone:
     classification: str
     start_index: int
@@ -89,3 +102,4 @@ class TrajectoryResult:
     engagement_zones: list[EngagementZone] = field(default_factory=list)
     risk_zones: list[RiskZone] = field(default_factory=list)
     unconstrained_optimum: RecommendedEngagement | None = None
+    ranked_engagements: list[RankedEngagement] = field(default_factory=list)

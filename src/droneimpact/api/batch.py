@@ -99,6 +99,8 @@ _worker_state = None
 def _init_batch_worker(state_dict: dict) -> None:
     global _worker_state
     _worker_state = state_dict
+    from droneimpact.physics.warmup import warmup_jit
+    warmup_jit()
 
 
 def _analyze_one_in_worker(drone_req_dict: dict) -> dict:

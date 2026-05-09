@@ -61,10 +61,14 @@ class PopulationIndex:
     def latlng_to_cells(
         self, lats: np.ndarray, lons: np.ndarray,
     ) -> list[str]:
-        return [
-            h3.latlng_to_cell(float(lats[i]), float(lons[i]), self._resolution)
-            for i in range(len(lats))
-        ]
+        result = []
+        for i in range(len(lats)):
+            lat_f, lon_f = float(lats[i]), float(lons[i])
+            if not (math.isfinite(lat_f) and math.isfinite(lon_f)
+                    and -90 <= lat_f <= 90 and -180 <= lon_f <= 180):
+                lat_f, lon_f = 0.0, 0.0
+            result.append(h3.latlng_to_cell(lat_f, lon_f, self._resolution))
+        return result
 
     def query_batch(
         self, lats: np.ndarray, lons: np.ndarray, radius_m: float

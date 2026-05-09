@@ -8,7 +8,6 @@ from droneimpact.dashboard.batch_input import render_batch_input
 from droneimpact.dashboard.components import (
     add_fallout_overlay,
     add_risk_zone_overlay,
-    compute_fallout_bounds,
     make_batch_map,
     make_coloured_trajectory,
     make_impact_scatter,
@@ -87,11 +86,13 @@ def _render_single_drone():
         analyze_btn = st.button("Analyze", type="primary", width="stretch") or auto_submit
 
     @st.cache_data(ttl=300, show_spinner=False)
-    def _cached_api_call(lat, lon, altitude_m, heading_deg, speed_m_s, _spacing, _range):
-        return call_api({
-            "lat": lat, "lon": lon, "altitude_m": altitude_m,
-            "heading_deg": heading_deg, "speed_m_s": speed_m_s,
-        })
+    def _cached_api_call(lat, lon, altitude_m, heading_deg, speed_m_s, spacing, range_m):
+        return call_api(
+            {"lat": lat, "lon": lon, "altitude_m": altitude_m,
+             "heading_deg": heading_deg, "speed_m_s": speed_m_s},
+            evaluation_spacing_m=spacing,
+            max_range_m=range_m,
+        )
 
     if analyze_btn:
         with st.spinner("Running analysis..."):
@@ -121,6 +122,9 @@ def _render_single_drone():
 
             selected_idx = st.session_state["selected_point_idx"]
 
+            score_by_idx = {pt["point_index"]: pt for pt in scores}
+            selected_pt = score_by_idx.get(selected_idx)
+
             traj_map = make_trajectory_map(result, selected_point_idx=selected_idx)
             add_risk_zone_overlay(
                 traj_map,
@@ -128,9 +132,70 @@ def _render_single_drone():
                 result.get("risk_zones", []),
             )
 
+            # Add ranked interception point markers (ranks 2-5; rank 1 is the red star)
+            _ranked_marker_colors = {
+                2: ("#f97316", "white"),   # orange
+                3: ("#eab308", "black"),   # yellow
+                4: ("#3b82f6", "white"),   # blue
+                5: ("#a855f7", "white"),   # purple
+            }
+            for re in result.get("ranked_engagements", [])[1:]:
+                rank = re["rank"]
+                color, text_color = _ranked_marker_colors.get(rank, ("#6b7280", "white"))
+                icon_html = (
+                    f'<div style="'
+                    f'background-color:{color};color:{text_color};'
+                    f'border-radius:50%;width:26px;height:26px;'
+                    f'display:flex;align-items:center;justify-content:center;'
+                    f'font-weight:bold;font-size:14px;border:2px solid white;'
+                    f'box-shadow:0 1px 3px rgba(0,0,0,0.4);">'
+                    f'{rank}</div>'
+                )
+                popup_html = (
+                    f"<b>Rank {rank} interception point</b><br>"
+                    f"Expected casualties: {re['expected_casualties']:.4f}<br>"
+                    f"{re['reasoning']}"
+                )
+                folium.Marker(
+                    location=[re["lat"], re["lon"]],
+                    icon=folium.DivIcon(
+                        html=icon_html,
+                        icon_size=(26, 26),
+                        icon_anchor=(13, 13),
+                    ),
+                    popup=folium.Popup(popup_html, max_width=300),
+                    tooltip=f"Rank {rank} fallback interception point",
+                ).add_to(traj_map)
+
+            # Pre-fetch impact data and overlay ellipses on the trajectory map
+            impact_data = None
+            if selected_pt:
+                try:
+                    impact_data = call_point_impact_api({
+                        "lat": selected_pt["lat"],
+                        "lon": selected_pt["lon"],
+                        "altitude_m": selected_pt["altitude_m"],
+                        "heading_deg": selected_pt.get("heading_deg", heading_deg),
+                        "speed_m_s": selected_pt.get("speed_m_s", speed_m_s),
+                    })
+                    add_fallout_overlay(traj_map, impact_data)
+                except Exception as e:
+                    st.warning(f"Could not load point impact data: {e}")
+
+            # Snap the viewport only when the selection just changed
+            if "focused_point_idx" not in st.session_state:
+                st.session_state["focused_point_idx"] = selected_idx
+            force_center = selected_idx != st.session_state["focused_point_idx"]
+            if force_center:
+                st.session_state["focused_point_idx"] = selected_idx
+            map_center = [selected_pt["lat"], selected_pt["lon"]] if (force_center and selected_pt) else None
+            map_zoom = 11 if force_center else None
+
             st.caption("Click an evaluation point to inspect its fallout area.")
             traj_data = st_folium(
                 traj_map,
+                center=map_center,
+                zoom=map_zoom,
                 width="stretch",
                 height=600,
                 returned_objects=["last_object_clicked_tooltip"],
@@ -143,46 +208,9 @@ def _render_single_drone():
                 st.session_state["selected_point_idx"] = clicked_idx
                 st.rerun()
 
-            score_by_idx = {pt["point_index"]: pt for pt in scores}
-            selected_pt = score_by_idx.get(selected_idx)
-
-            if selected_pt:
-                try:
-                    impact_data = call_point_impact_api({
-                        "lat": selected_pt["lat"],
-                        "lon": selected_pt["lon"],
-                        "altitude_m": selected_pt["altitude_m"],
-                        "heading_deg": selected_pt.get("heading_deg", heading_deg),
-                        "speed_m_s": selected_pt.get("speed_m_s", speed_m_s),
-                    })
-
-                    bounds = compute_fallout_bounds(
-                        selected_pt["lat"], selected_pt["lon"], impact_data,
-                    )
-                    fallout_map = make_coloured_trajectory(result, zoom_bounds=bounds)
-                    add_risk_zone_overlay(
-                        fallout_map,
-                        scores,
-                        result.get("risk_zones", []),
-                    )
-                    folium.CircleMarker(
-                        [selected_pt["lat"], selected_pt["lon"]],
-                        radius=10, color="#8b5cf6", fill=True,
-                        fill_opacity=1.0, weight=3,
-                        tooltip="Selected point",
-                    ).add_to(fallout_map)
-                    add_fallout_overlay(fallout_map, impact_data)
-                    st_folium(
-                        fallout_map,
-                        width="stretch",
-                        height=450,
-                        returned_objects=[],
-                        key="fallout_map",
-                    )
-
-                    st.markdown(make_point_detail_panel(selected_pt, impact_data))
-                except Exception as e:
-                    st.warning(f"Could not load point impact data: {e}")
+            # Detail panel only — no separate fallout map
+            if selected_pt and impact_data:
+                st.markdown(make_point_detail_panel(selected_pt, impact_data))
 
         with tab_impact:
             st.plotly_chart(make_impact_scatter(result), width="stretch")
@@ -296,6 +324,9 @@ def _render_batch():
 
             selected_idx = st.session_state[batch_sel_key]
 
+            score_by_idx = {pt["point_index"]: pt for pt in scores}
+            selected_pt = score_by_idx.get(selected_idx)
+
             traj_map = make_trajectory_map(drone_result, selected_point_idx=selected_idx)
             add_risk_zone_overlay(
                 traj_map,
@@ -303,9 +334,38 @@ def _render_batch():
                 drone_result.get("risk_zones", []),
             )
 
+            # Pre-fetch impact data and overlay ellipses on the trajectory map
+            impact_data = None
+            if selected_pt:
+                pt_heading = selected_pt.get("heading_deg", 0.0)
+                pt_speed = selected_pt.get("speed_m_s", 51.4)
+                try:
+                    impact_data = call_point_impact_api({
+                        "lat": selected_pt["lat"],
+                        "lon": selected_pt["lon"],
+                        "altitude_m": selected_pt["altitude_m"],
+                        "heading_deg": pt_heading,
+                        "speed_m_s": pt_speed,
+                    })
+                    add_fallout_overlay(traj_map, impact_data)
+                except Exception as e:
+                    st.warning(f"Could not load point impact data: {e}")
+
+            # Snap the viewport only when the selection just changed
+            batch_focused_key = f"batch_focused_point_{idx}"
+            if batch_focused_key not in st.session_state:
+                st.session_state[batch_focused_key] = selected_idx
+            force_center = selected_idx != st.session_state[batch_focused_key]
+            if force_center:
+                st.session_state[batch_focused_key] = selected_idx
+            map_center = [selected_pt["lat"], selected_pt["lon"]] if (force_center and selected_pt) else None
+            map_zoom = 11 if force_center else None
+
             st.caption("Click an evaluation point to inspect its fallout area.")
             traj_data = st_folium(
                 traj_map,
+                center=map_center,
+                zoom=map_zoom,
                 width="stretch",
                 height=500,
                 returned_objects=["last_object_clicked_tooltip"],
@@ -318,48 +378,9 @@ def _render_batch():
                 st.session_state[batch_sel_key] = clicked_idx
                 st.rerun()
 
-            score_by_idx = {pt["point_index"]: pt for pt in scores}
-            selected_pt = score_by_idx.get(selected_idx)
-
-            if selected_pt:
-                pt_heading = selected_pt.get("heading_deg", 0.0)
-                pt_speed = selected_pt.get("speed_m_s", 51.4)
-                try:
-                    impact_data = call_point_impact_api({
-                        "lat": selected_pt["lat"],
-                        "lon": selected_pt["lon"],
-                        "altitude_m": selected_pt["altitude_m"],
-                        "heading_deg": pt_heading,
-                        "speed_m_s": pt_speed,
-                    })
-
-                    bounds = compute_fallout_bounds(
-                        selected_pt["lat"], selected_pt["lon"], impact_data,
-                    )
-                    fallout_map = make_coloured_trajectory(drone_result, zoom_bounds=bounds)
-                    add_risk_zone_overlay(
-                        fallout_map,
-                        scores,
-                        drone_result.get("risk_zones", []),
-                    )
-                    folium.CircleMarker(
-                        [selected_pt["lat"], selected_pt["lon"]],
-                        radius=10, color="#8b5cf6", fill=True,
-                        fill_opacity=1.0, weight=3,
-                        tooltip="Selected point",
-                    ).add_to(fallout_map)
-                    add_fallout_overlay(fallout_map, impact_data)
-                    st_folium(
-                        fallout_map,
-                        width="stretch",
-                        height=450,
-                        returned_objects=[],
-                        key=f"batch_fallout_map_{idx}",
-                    )
-
-                    st.markdown(make_point_detail_panel(selected_pt, impact_data))
-                except Exception as e:
-                    st.warning(f"Could not load point impact data: {e}")
+            # Detail panel only — no separate fallout map
+            if selected_pt and impact_data:
+                st.markdown(make_point_detail_panel(selected_pt, impact_data))
 
         with tab_impact:
             st.plotly_chart(make_impact_scatter(drone_result), width="stretch")

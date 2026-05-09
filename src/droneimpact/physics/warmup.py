@@ -12,7 +12,7 @@ def warmup_jit() -> None:
     n = 4
 
     _m1_kernel(
-        np.zeros(n), np.ones(n), 100.0,
+        np.zeros(n), np.ones(n), np.ones(n) * 50.0, 100.0,
     )
 
     _m2_kernel(

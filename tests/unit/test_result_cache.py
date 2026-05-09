@@ -166,3 +166,24 @@ class TestCorruptEntry:
         result = cache.get("corrupted000")
         assert result is None
         assert not path.exists()
+
+
+class TestReadOnlyDirectory:
+    def test_put_on_readonly_disables_cache(self, tmp_path, sample_response):
+        ro_dir = tmp_path / "readonly" / "cache"
+        ro_parent = tmp_path / "readonly"
+        ro_parent.mkdir()
+        ro_parent.chmod(0o555)
+        cache = ResultCache(ro_dir, fingerprint="aabbccddee00")
+        cache.put("req000000000", sample_response)
+        assert not cache.enabled
+        ro_parent.chmod(0o755)
+
+    def test_put_readonly_does_not_raise(self, tmp_path, sample_response):
+        ro_dir = tmp_path / "readonly" / "cache"
+        ro_parent = tmp_path / "readonly"
+        ro_parent.mkdir()
+        ro_parent.chmod(0o555)
+        cache = ResultCache(ro_dir, fingerprint="aabbccddee00")
+        cache.put("req000000000", sample_response)
+        ro_parent.chmod(0o755)

@@ -57,6 +57,7 @@ def _make_config(high_risk_threshold: float = 0.5):
             },
             "m1_sigma_heading_deg": 5.0,
             "m1_sigma_glide_ratio": 0.8,
+            "m1_sigma_speed_m_s": 5.0,
             "m2_sigma_init_deg": 30.0,
             "m2_sigma_turn_deg_per_s": 15.0,
             "m2_dt_s": 1.0,

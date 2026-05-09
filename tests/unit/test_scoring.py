@@ -7,7 +7,7 @@ from droneimpact.data.infrastructure import InfrastructureIndex
 from droneimpact.data.population import PopulationIndex
 from droneimpact.physics.trajectory import discretise_trajectory
 from droneimpact.physics.types import StateVector
-from droneimpact.scoring.engine import ScoringEngine
+from droneimpact.scoring.engine import ScoringEngine, _enu_to_wgs84_fast
 from tests.fixtures.population_small import make_test_population
 
 BOUNDS = dict(west=30.0, south=47.0, east=32.0, north=49.0)
@@ -418,3 +418,21 @@ class TestCityBoundarySharpness:
                         f"Point {idx} ({offset}km from peak) has score "
                         f"{all_vals[idx]:.6f}, expected < 25% of peak {peak_score:.6f}"
                     )
+
+
+class TestEnuToWgs84NanFiltering:
+    def test_nan_rows_filtered(self):
+        enu = np.array([[100.0, 200.0], [np.nan, 300.0], [400.0, np.nan]])
+        result = _enu_to_wgs84_fast(enu, 48.0, 31.0)
+        assert result.shape[0] == 1
+        assert np.isfinite(result).all()
+
+    def test_inf_rows_filtered(self):
+        enu = np.array([[100.0, 200.0], [np.inf, 300.0]])
+        result = _enu_to_wgs84_fast(enu, 48.0, 31.0)
+        assert result.shape[0] == 1
+
+    def test_valid_rows_preserved(self):
+        enu = np.array([[0.0, 0.0], [1000.0, 1000.0]])
+        result = _enu_to_wgs84_fast(enu, 48.0, 31.0)
+        assert result.shape[0] == 2
