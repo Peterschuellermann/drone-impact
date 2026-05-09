@@ -31,7 +31,7 @@ def add_direction_arrows(
         p1 = points[idx + 1] if idx + 1 < len(points) else points[idx]
         bearing = _bearing(p0[0], p0[1], p1[0], p1[1])
 
-        folium.RegularPolygonMarker(
+        arrow = folium.RegularPolygonMarker(
             location=p0,
             number_of_sides=3,
             radius=6,
@@ -42,7 +42,9 @@ def add_direction_arrows(
             fill_opacity=0.5,
             weight=1,
             opacity=0.5,
-        ).add_to(target)
+        )
+        arrow.options["interactive"] = False
+        arrow.add_to(target)
 
 
 MODE_COLOURS = {
@@ -108,20 +110,26 @@ def make_trajectory_map(
 
     coords = [[pt["lat"], pt["lon"]] for pt in scores]
     if coords:
-        folium.PolyLine(coords, color="#3b82f6", weight=3, opacity=0.8).add_to(trajectory_group)
+        traj_line = folium.PolyLine(coords, color="#3b82f6", weight=3, opacity=0.8)
+        traj_line.options["interactive"] = False
+        traj_line.add_to(trajectory_group)
         add_direction_arrows(m, coords, color="#3b82f6", group=trajectory_group)
 
     if scores:
-        folium.CircleMarker(
+        start = folium.CircleMarker(
             [scores[0]["lat"], scores[0]["lon"]],
             radius=8, color="#22c55e", fill=True, fill_opacity=1.0,
-            tooltip="Start",
-        ).add_to(trajectory_group)
-        folium.CircleMarker(
+            popup="Start",
+        )
+        start.options["interactive"] = False
+        start.add_to(trajectory_group)
+        end = folium.CircleMarker(
             [scores[-1]["lat"], scores[-1]["lon"]],
             radius=8, color="#ef4444", fill=True, fill_opacity=1.0,
-            tooltip="End",
-        ).add_to(trajectory_group)
+            popup="End",
+        )
+        end.options["interactive"] = False
+        end.add_to(trajectory_group)
 
     max_cas = max((pt["expected_casualties"] for pt in scores), default=1.0) or 1.0
     eval_group = folium.FeatureGroup(name="Evaluation Points", show=True)
@@ -141,7 +149,7 @@ def make_trajectory_map(
     folium.Marker(
         [rec["lat"], rec["lon"]],
         icon=folium.Icon(color="red", icon="star", prefix="fa"),
-        tooltip=(
+        popup=(
             f"RECOMMENDED | "
             f"Casualties: {rec['expected_casualties']:.3f} | "
             f"Score: {rec['engagement_score']:.3f}"

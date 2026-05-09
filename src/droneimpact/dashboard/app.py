@@ -166,7 +166,6 @@ def _render_single_drone():
                         icon_anchor=(13, 13),
                     ),
                     popup=folium.Popup(popup_html, max_width=300),
-                    tooltip=f"Rank {rank} fallback interception point",
                 ).add_to(traj_map)
 
             impact_data = None
@@ -188,8 +187,14 @@ def _render_single_drone():
             force_center = selected_idx != st.session_state["focused_point_idx"]
             if force_center:
                 st.session_state["focused_point_idx"] = selected_idx
-            map_center = [selected_pt["lat"], selected_pt["lon"]] if (force_center and selected_pt) else None
-            map_zoom = 11 if force_center else None
+
+            saved = st.session_state.get("map_view", {})
+            if force_center and selected_pt:
+                map_center = [selected_pt["lat"], selected_pt["lon"]]
+                map_zoom = 11
+            else:
+                map_center = saved.get("center") or None
+                map_zoom = saved.get("zoom") or None
 
             st.caption("Click an evaluation point to inspect its fallout area.")
             traj_data = st_folium(
@@ -198,10 +203,17 @@ def _render_single_drone():
                 zoom=map_zoom,
                 use_container_width=True,
                 height=600,
-                returned_objects=["last_object_clicked_tooltip"],
+                returned_objects=["last_object_clicked_tooltip", "center", "zoom"],
                 layer_control=folium.LayerControl(),
                 key="trajectory_map",
             )
+
+            if traj_data:
+                if traj_data.get("center"):
+                    st.session_state["map_view"] = {
+                        "center": [traj_data["center"]["lat"], traj_data["center"]["lng"]],
+                        "zoom": traj_data.get("zoom"),
+                    }
 
             clicked_tooltip = (traj_data or {}).get("last_object_clicked_tooltip")
             clicked_idx = parse_point_index_from_tooltip(clicked_tooltip)
@@ -360,8 +372,15 @@ def _render_batch():
             force_center = selected_idx != st.session_state[batch_focused_key]
             if force_center:
                 st.session_state[batch_focused_key] = selected_idx
-            map_center = [selected_pt["lat"], selected_pt["lon"]] if (force_center and selected_pt) else None
-            map_zoom = 11 if force_center else None
+
+            batch_view_key = f"batch_map_view_{idx}"
+            saved = st.session_state.get(batch_view_key, {})
+            if force_center and selected_pt:
+                map_center = [selected_pt["lat"], selected_pt["lon"]]
+                map_zoom = 11
+            else:
+                map_center = saved.get("center") or None
+                map_zoom = saved.get("zoom") or None
 
             st.caption("Click an evaluation point to inspect its fallout area.")
             traj_data = st_folium(
@@ -370,10 +389,17 @@ def _render_batch():
                 zoom=map_zoom,
                 use_container_width=True,
                 height=500,
-                returned_objects=["last_object_clicked_tooltip"],
+                returned_objects=["last_object_clicked_tooltip", "center", "zoom"],
                 layer_control=folium.LayerControl(),
                 key=f"batch_traj_map_{idx}",
             )
+
+            if traj_data:
+                if traj_data.get("center"):
+                    st.session_state[batch_view_key] = {
+                        "center": [traj_data["center"]["lat"], traj_data["center"]["lng"]],
+                        "zoom": traj_data.get("zoom"),
+                    }
 
             clicked_tooltip = (traj_data or {}).get("last_object_clicked_tooltip")
             clicked_idx = parse_point_index_from_tooltip(clicked_tooltip)
