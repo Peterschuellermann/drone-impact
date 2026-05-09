@@ -12,6 +12,7 @@ from droneimpact.dashboard.components import (
     add_strike_overlay,
     make_batch_map,
     make_coloured_trajectory,
+    make_drone_overview_map,
     make_impact_scatter,
     make_point_detail_panel,
     make_priority_table,
@@ -316,7 +317,28 @@ def _render_batch():
                 st.stop()
 
     if "batch_result" not in st.session_state:
-        st.info("Configure drones in the sidebar and click **Analyze Batch**.")
+        scenario_drones = st.session_state.get("scenario_drones")
+        if scenario_drones:
+            st.subheader("Scenario Overview")
+            drone_table = []
+            for i, d in enumerate(scenario_drones):
+                drone_table.append({
+                    "Drone": d["drone_id"],
+                    "Lat": f"{d['lat']:.4f}",
+                    "Lon": f"{d['lon']:.4f}",
+                    "Alt (m)": f"{d['altitude_m']:.0f}",
+                    "Heading": f"{d['heading_deg']:.0f}°",
+                    "Speed (m/s)": f"{d['speed_m_s']:.1f}",
+                })
+            st.dataframe(drone_table, use_container_width=True, hide_index=True)
+
+            overview_drones = [
+                {"drone_id": d["drone_id"], "trajectory": d} for d in scenario_drones
+            ]
+            overview_map = make_drone_overview_map(overview_drones)
+            st_folium(overview_map, width="stretch", height=400, returned_objects=[], key="overview_map")
+        else:
+            st.info("Configure drones in the sidebar and click **Analyze Batch**.")
         return
 
     batch_result = st.session_state["batch_result"]
@@ -332,15 +354,19 @@ def _render_batch():
         st.error("All drones failed. Check the API and retry.")
         return
 
-    st_folium(make_batch_map(batch_result), use_container_width=True, height=500, returned_objects=[])
+    st.subheader("Drill-Down")
+    drone_ids = [r.get("drone_id") or f"Drone {i + 1}" for i, r in enumerate(results)]
+    selected = st.selectbox("Select drone for detail view", drone_ids)
+    selected_drone_idx = drone_ids.index(selected) if selected else None
+
+    st_folium(
+        make_batch_map(batch_result, selected_drone_idx=selected_drone_idx),
+        use_container_width=True, height=500, returned_objects=[],
+    )
 
     st.subheader("Priority Ranking")
     rows = make_priority_table(batch_result)
     st.dataframe(rows, width="stretch", hide_index=True)
-
-    st.subheader("Drill-Down")
-    drone_ids = [r.get("drone_id") or f"Drone {i + 1}" for i, r in enumerate(results)]
-    selected = st.selectbox("Select drone for detail view", drone_ids)
 
     if selected:
         idx = drone_ids.index(selected)
