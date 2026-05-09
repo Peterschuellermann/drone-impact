@@ -120,9 +120,6 @@ def _render_single_drone():
             scores = result["trajectory_scores"]
             rec_idx = result["recommended_engagement"]["point_index"]
 
-            if "selected_point_idx" not in st.session_state:
-                st.session_state["selected_point_idx"] = rec_idx
-
             point_indices = [pt["point_index"] for pt in scores]
             point_labels = {
                 pt["point_index"]: (
@@ -133,15 +130,14 @@ def _render_single_drone():
                 )
                 for pt in scores
             }
+            if "point_selector" not in st.session_state:
+                st.session_state["point_selector"] = rec_idx
             selected_idx = st.selectbox(
                 "Select evaluation point",
                 options=point_indices,
-                index=point_indices.index(st.session_state["selected_point_idx"])
-                if st.session_state["selected_point_idx"] in point_indices else 0,
                 format_func=lambda i: point_labels[i],
                 key="point_selector",
             )
-            st.session_state["selected_point_idx"] = selected_idx
 
             score_by_idx = {pt["point_index"]: pt for pt in scores}
             selected_pt = score_by_idx.get(selected_idx)
@@ -220,7 +216,7 @@ def _render_single_drone():
             clicked_tooltip = (traj_data or {}).get("last_object_clicked_tooltip")
             clicked_idx = parse_point_index_from_tooltip(clicked_tooltip)
             if clicked_idx is not None and clicked_idx != selected_idx:
-                st.session_state["selected_point_idx"] = clicked_idx
+                st.session_state["point_selector"] = clicked_idx
                 st.rerun(scope="fragment")
 
             if selected_pt and impact_data:
@@ -336,9 +332,7 @@ def _render_batch():
             scores = drone_result["trajectory_scores"]
             rec_idx = drone_result["recommended_engagement"]["point_index"]
 
-            batch_sel_key = f"batch_selected_point_{idx}"
-            if batch_sel_key not in st.session_state:
-                st.session_state[batch_sel_key] = rec_idx
+            batch_widget_key = f"batch_point_selector_{idx}"
 
             point_indices = [pt["point_index"] for pt in scores]
             point_labels = {
@@ -350,15 +344,14 @@ def _render_batch():
                 )
                 for pt in scores
             }
+            if batch_widget_key not in st.session_state:
+                st.session_state[batch_widget_key] = rec_idx
             selected_idx = st.selectbox(
                 "Select evaluation point",
                 options=point_indices,
-                index=point_indices.index(st.session_state[batch_sel_key])
-                if st.session_state[batch_sel_key] in point_indices else 0,
                 format_func=lambda i: point_labels[i],
-                key=f"batch_point_selector_{idx}",
+                key=batch_widget_key,
             )
-            st.session_state[batch_sel_key] = selected_idx
 
             score_by_idx = {pt["point_index"]: pt for pt in scores}
             selected_pt = score_by_idx.get(selected_idx)
@@ -406,7 +399,7 @@ def _render_batch():
             clicked_tooltip = (traj_data or {}).get("last_object_clicked_tooltip")
             clicked_idx = parse_point_index_from_tooltip(clicked_tooltip)
             if clicked_idx is not None and clicked_idx != selected_idx:
-                st.session_state[batch_sel_key] = clicked_idx
+                st.session_state[batch_widget_key] = clicked_idx
                 st.rerun(scope="fragment")
 
             if selected_pt and impact_data:
