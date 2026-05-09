@@ -79,7 +79,7 @@ Altitudes are **metres above mean sea level (MSL)** in the API. The physics engi
     "altitude_m": 400,
     "distance_from_current_m": 6000,
     "expected_casualties": 0.031,
-    "engagement_score": 0.031,
+    "engagement_score": 0.74,
     "reasoning": "Low population density; debris falls in open field. Engaging later risks overflying Mykolaiv suburbs."
   },
   "trajectory_scores": [
@@ -91,7 +91,8 @@ Altitudes are **metres above mean sea level (MSL)** in the API. The physics engi
       "distance_from_current_m": 0,
       "heading_deg": 315.0,
       "speed_m_s": 51.4,
-      "expected_casualties": 0.18,
+      "expected_casualties": 0.16,
+      "engagement_score": 0.79,
       "breakdown": {
         "p_kill": 0.50,
         "modes": {

@@ -64,6 +64,16 @@ def test_all_engagement_scores_non_negative(scoring, short_trajectory, flat_dem,
         assert ps.engagement_score >= 0.0
 
 
+def test_expected_casualties_differs_from_engagement_score(scoring, short_trajectory, flat_dem, casualty_engine):
+    result = scoring.score_trajectory(
+        short_trajectory, flat_dem, casualty_engine, (48.1, 31.0),
+        rng=np.random.default_rng(0)
+    )
+    for ps in result.trajectory_scores:
+        assert ps.expected_casualties == pytest.approx(ps.hit_branch_expected_casualties)
+        assert ps.engagement_score >= ps.expected_casualties
+
+
 def _enabled_mode_names(config) -> set[str]:
     e = config.engagement.mode_enable
     names = set()

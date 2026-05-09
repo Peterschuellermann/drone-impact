@@ -126,7 +126,7 @@ class ScoringEngine:
                 ellipse = compute_impact_ellipse(enu, pt.lat, pt.lon)
                 dists.append(ImpactDistribution(pt.index, mode_name, ellipse))
 
-        score = eng.p_kill * hit_casualties + (1.0 - eng.p_kill) * miss_casualties
+        engagement_score = eng.p_kill * hit_casualties + (1.0 - eng.p_kill) * miss_casualties
 
         ps = PointScore(
             point_index=pt.index,
@@ -134,8 +134,8 @@ class ScoringEngine:
             lon=pt.lon,
             altitude_m=pt.altitude_m,
             distance_from_start_m=pt.distance_from_start_m,
-            expected_casualties=score,
-            engagement_score=score,
+            expected_casualties=hit_casualties,
+            engagement_score=engagement_score,
             breakdown=breakdown,
             miss_branch_expected_casualties=miss_casualties,
             heading_deg=pt.heading_deg,
@@ -463,31 +463,31 @@ class ScoringEngine:
             scored_originals[i] = ps
             impact_dists.extend(dists)
 
-        best_dense_per_original: dict[int, float] = {}
+        best_dense_per_original: dict[int, PointScore] = {}
         for orig_idx, ps, _ in dense_results:
             if orig_idx in scored_originals:
                 current_best = best_dense_per_original.get(orig_idx)
-                if current_best is None or ps.engagement_score < current_best:
-                    best_dense_per_original[orig_idx] = ps.engagement_score
+                if current_best is None or ps.engagement_score < current_best.engagement_score:
+                    best_dense_per_original[orig_idx] = ps
 
-        for orig_idx, dense_score in best_dense_per_original.items():
+        for orig_idx, dense_ps in best_dense_per_original.items():
             if orig_idx in scored_originals:
                 orig = scored_originals[orig_idx]
-                if dense_score < orig.engagement_score:
+                if dense_ps.engagement_score < orig.engagement_score:
                     scored_originals[orig_idx] = PointScore(
                         point_index=orig.point_index,
                         lat=orig.lat,
                         lon=orig.lon,
                         altitude_m=orig.altitude_m,
                         distance_from_start_m=orig.distance_from_start_m,
-                        expected_casualties=dense_score,
-                        engagement_score=dense_score,
+                        expected_casualties=dense_ps.expected_casualties,
+                        engagement_score=dense_ps.engagement_score,
                         breakdown=orig.breakdown,
                         miss_branch_expected_casualties=orig.miss_branch_expected_casualties,
                         heading_deg=orig.heading_deg,
                         speed_m_s=orig.speed_m_s,
                         population_within_frag_radius=orig.population_within_frag_radius,
-                        hit_branch_expected_casualties=orig.hit_branch_expected_casualties,
+                        hit_branch_expected_casualties=dense_ps.hit_branch_expected_casualties,
                     )
 
         miss_only_score = (1.0 - self._config.engagement.p_kill) * miss_casualties
@@ -502,7 +502,7 @@ class ScoringEngine:
                     lon=pt.lon,
                     altitude_m=pt.altitude_m,
                     distance_from_start_m=pt.distance_from_start_m,
-                    expected_casualties=miss_only_score,
+                    expected_casualties=0.0,
                     engagement_score=miss_only_score,
                     breakdown={},
                     miss_branch_expected_casualties=miss_casualties,
@@ -619,7 +619,7 @@ class ScoringEngine:
                     lon=ps.lon,
                     altitude_m=ps.altitude_m,
                     distance_from_start_m=ps.distance_from_start_m,
-                    expected_casualties=float(interp_scores[i]),
+                    expected_casualties=float(interp_hit_cas[i]),
                     engagement_score=float(interp_scores[i]),
                     breakdown=ps.breakdown,
                     miss_branch_expected_casualties=ps.miss_branch_expected_casualties,

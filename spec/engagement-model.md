@@ -88,6 +88,13 @@ E_i = 0.50 × (0.40 × C_M1(P_i) + 0.35 × C_M2(P_i) + 0.25 × C_M3(P_i))
 
 The **recommended engagement point** is selected using the safe intercept constraint (see below).
 
+### Response Fields
+
+Two distinct casualty metrics are returned per evaluation point:
+
+- **`expected_casualties`**: Hit-branch casualties only — the weighted mean casualties from debris if the intercept succeeds at this point. This reflects the ground risk at this specific location.
+- **`engagement_score`**: The full decision metric E_i (hit + miss branches). Used to rank and recommend engagement points.
+
 ---
 
 ## Safe Intercept Constraint
