@@ -205,8 +205,8 @@ def make_impact_scatter(result: dict) -> go.Figure:
         for a in angles:
             x = ellipse["semi_major_m"] * math.cos(a)
             y = ellipse["semi_minor_m"] * math.sin(a)
-            rx = x * math.cos(orient_rad) - y * math.sin(orient_rad)
-            ry = x * math.sin(orient_rad) + y * math.cos(orient_rad)
+            rx = x * math.sin(orient_rad) + y * math.cos(orient_rad)
+            ry = x * math.cos(orient_rad) - y * math.sin(orient_rad)
             lats.append(ellipse["centre_lat"] + ry * lat_per_m)
             lons.append(ellipse["centre_lon"] + rx * lon_per_m)
 
