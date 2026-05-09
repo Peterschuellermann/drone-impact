@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import time
 from datetime import datetime, timezone
 
@@ -8,6 +9,7 @@ from fastapi import APIRouter, HTTPException, Request
 import numpy as np
 
 from droneimpact.api import get_app_state
+from droneimpact.api.cache import ResultCache, compute_request_hash
 from droneimpact.api.schemas import (
     EngagementZoneSchema,
     ImpactDistributionSchema,
@@ -30,7 +32,13 @@ from droneimpact.scoring.ellipse import compute_combined_danger_zone
 from droneimpact.scoring.engine import ScoringEngine
 from droneimpact.scoring.types import TrajectoryResult
 
+logger = logging.getLogger(__name__)
+
 router = APIRouter(prefix="/analyze")
+
+
+def _get_cache(request: Request) -> ResultCache | None:
+    return getattr(request.app.state, "result_cache", None)
 
 
 @router.post("/single", response_model=SingleDroneResponse)
@@ -38,6 +46,24 @@ def analyze_single(body: SingleDroneRequest, request: Request) -> SingleDroneRes
     state = get_app_state(request)
     if not state.data_loaded:
         raise HTTPException(status_code=503, detail="Data not loaded. Check /health.")
+
+    cache = _get_cache(request)
+    req_hash = compute_request_hash(
+        body.trajectory.lat,
+        body.trajectory.lon,
+        body.trajectory.altitude_m,
+        body.trajectory.heading_deg,
+        body.trajectory.speed_m_s,
+        body.evaluation_spacing_m,
+        body.max_range_m,
+    )
+
+    if cache and cache.enabled:
+        cached = cache.get(req_hash)
+        if cached is not None:
+            logger.debug("Cache hit for %s", req_hash)
+            cached["metadata"]["from_cache"] = True
+            return SingleDroneResponse.model_validate(cached)
 
     t_start = time.perf_counter()
 
@@ -70,7 +96,12 @@ def analyze_single(body: SingleDroneRequest, request: Request) -> SingleDroneRes
 
     elapsed_ms = (time.perf_counter() - t_start) * 1000
 
-    return _build_response(body, result, elapsed_ms, state)
+    response = _build_response(body, result, elapsed_ms, state)
+
+    if cache and cache.enabled:
+        cache.put(req_hash, response.model_dump())
+
+    return response
 
 
 @router.post("/point-impact", response_model=PointImpactResponse)

@@ -307,6 +307,11 @@ scoring:
   zone_caution_threshold: 0.1
   zone_nogo_threshold: 1.0
 
+cache:
+  enabled: true
+  max_entries: 50
+  directory: "data/cache"
+
 data:
   population_path: "./data/kontur_ukraine.gpkg"
   dem_path: "./data/ukraine_dem.tif"
@@ -353,6 +358,30 @@ Single worker (uvicorn). Async FastAPI handles concurrent requests. Physics engi
 | Data loading | Smoke test that all data indices load without error and respond correctly |
 
 **Physics validation approach:** For M1 (propulsion loss), the analytical solution is deterministic for zero variance. Set σ_heading = 0, verify that all N samples land at the exact expected glide range. This catches unit/coordinate errors.
+
+---
+
+## Result Cache
+
+The `/analyze/single` endpoint supports an optional disk-based result cache that turns repeated identical requests (~500 ms computation) into ~5 ms file reads.
+
+**Cache key design:**
+- **Computation fingerprint** (12 hex chars): SHA-256 of `git_commit_sha || physics_config_json || engagement_config_json || casualty_config_json || scoring_config_json`. Computed once at startup.
+- **Request hash** (12 hex chars): SHA-256 of `[lat, lon, altitude_m, heading_deg, speed_m_s, evaluation_spacing_m, max_range_m]`.
+- **Filename:** `{fingerprint}_{request_hash}.json` in `data/cache/`.
+
+**Lifecycle:**
+1. On startup, compute fingerprint from current code + config.
+2. Scan cache directory; delete any files whose filename prefix doesn't match the current fingerprint.
+3. On each `/analyze/single` request: compute request hash, check for cache file, return cached response if found.
+4. On cache miss: compute result, write response to cache file.
+
+**Configuration** (`config.yaml` `cache` section):
+- `enabled` (bool, default `true`): disable to bypass all cache reads/writes.
+- `max_entries` (int, default `50`): maximum cached files. When full, evict oldest by mtime.
+- `directory` (str, default `data/cache`): filesystem path for cache files.
+
+**Response metadata:** `metadata.from_cache` (bool) indicates whether the response was served from cache.
 
 ---
 

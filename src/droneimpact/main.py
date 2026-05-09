@@ -5,11 +5,13 @@ import multiprocessing as mp
 import time
 from concurrent.futures import ProcessPoolExecutor
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 from fastapi import FastAPI
 
 from droneimpact.api.analyze import router as analyze_router
 from droneimpact.api.batch import JobStore, _init_batch_worker, router as batch_router
+from droneimpact.api.cache import ResultCache, compute_fingerprint
 from droneimpact.api.health import router as health_router
 from droneimpact.config import load_config
 from droneimpact.data.dem import DEMIndex
@@ -66,6 +68,22 @@ async def lifespan(app: FastAPI):
     t_jit = time.perf_counter()
     warmup_jit()
     logger.info("JIT warm-up complete in %.1f s", time.perf_counter() - t_jit)
+
+    fingerprint = compute_fingerprint(cfg)
+    cache = ResultCache(
+        cache_dir=Path(cfg.cache.directory),
+        fingerprint=fingerprint,
+        max_entries=cfg.cache.max_entries,
+        enabled=cfg.cache.enabled,
+    )
+    if cache.enabled:
+        pruned = cache.prune_stale()
+        if pruned:
+            logger.info("Pruned %d stale cache entries", pruned)
+        logger.info("Result cache enabled (fingerprint=%s, max=%d)", fingerprint, cfg.cache.max_entries)
+    else:
+        logger.info("Result cache disabled")
+    app.state.result_cache = cache
 
     n_batch_workers = cfg.parallelism.effective_batch_workers
     if n_batch_workers > 1 and app.state.data_loaded:

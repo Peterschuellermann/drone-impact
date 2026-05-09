@@ -90,6 +90,7 @@ class MetadataSchema(BaseModel):
     infrastructure_dataset: str
     n_points_skipped: int | None = None
     n_points_dense: int | None = None
+    from_cache: bool = False
 
 
 class RiskZoneSchema(BaseModel):

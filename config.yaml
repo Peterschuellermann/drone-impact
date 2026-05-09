@@ -89,6 +89,11 @@ parallelism:
   batch_workers: 0    # per-drone process parallelism; 0 = auto (cpu_count)
   batch_parallel_threshold: 2
 
+cache:
+  enabled: true
+  max_entries: 50
+  directory: "data/cache"
+
 data:
   population_path: "./data/kontur_ukraine.gpkg"
   dem_path: "./data/ukraine_dem.tif"

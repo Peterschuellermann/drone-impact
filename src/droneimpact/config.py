@@ -155,6 +155,12 @@ class ParallelismConfig(BaseModel):
         return self.batch_workers or os.cpu_count() or 1
 
 
+class CacheConfig(BaseModel):
+    enabled: bool = True
+    max_entries: int = 50
+    directory: str = "data/cache"
+
+
 class AppConfig(BaseModel):
     version: str
     physics: PhysicsConfig
@@ -164,6 +170,7 @@ class AppConfig(BaseModel):
     scoring: ScoringConfig = ScoringConfig()
     scenarios: list[ScenarioConfig] = []
     parallelism: ParallelismConfig = ParallelismConfig()
+    cache: CacheConfig = CacheConfig()
 
 
 def load_config(path: str | Path = "config.yaml") -> AppConfig:
