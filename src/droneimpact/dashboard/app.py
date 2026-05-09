@@ -8,6 +8,7 @@ from droneimpact.dashboard.batch_input import render_batch_input
 from droneimpact.dashboard.components import (
     add_fallout_overlay,
     add_risk_zone_overlay,
+    compute_fallout_bounds,
     make_batch_map,
     make_coloured_trajectory,
     make_impact_scatter,
@@ -16,6 +17,7 @@ from droneimpact.dashboard.components import (
     make_risk_profile,
     make_stats_panel,
     make_trajectory_map,
+    parse_point_index_from_tooltip,
     prepare_animation_frames,
 )
 from droneimpact.dashboard.utils import (
@@ -111,38 +113,40 @@ def _render_single_drone():
         ])
 
         with tab_map:
-            traj_map = make_trajectory_map(result)
-            add_risk_zone_overlay(
-                traj_map,
-                result["trajectory_scores"],
-                result.get("risk_zones", []),
-            )
-            st_folium(traj_map, width="stretch", height=600, returned_objects=[])
-
-            # --- Interactive point inspection ---
             scores = result["trajectory_scores"]
             rec_idx = result["recommended_engagement"]["point_index"]
 
-            point_options = []
-            default_select = 0
-            for i, pt in enumerate(scores):
-                dist_km = pt["distance_from_current_m"] / 1000
-                label = f"Point #{pt['point_index']} -- {dist_km:.1f} km"
-                if pt["point_index"] == rec_idx:
-                    label += " (recommended)"
-                    default_select = i
-                point_options.append(label)
+            if "selected_point_idx" not in st.session_state:
+                st.session_state["selected_point_idx"] = rec_idx
 
-            if point_options:
-                selected_pt_idx = st.selectbox(
-                    "Inspect evaluation point",
-                    range(len(point_options)),
-                    index=default_select,
-                    format_func=lambda i: point_options[i],
-                    key="inspect_point",
-                )
+            selected_idx = st.session_state["selected_point_idx"]
 
-                selected_pt = scores[selected_pt_idx]
+            traj_map = make_trajectory_map(result, selected_point_idx=selected_idx)
+            add_risk_zone_overlay(
+                traj_map,
+                scores,
+                result.get("risk_zones", []),
+            )
+
+            st.caption("Click an evaluation point to inspect its fallout area.")
+            traj_data = st_folium(
+                traj_map,
+                width="stretch",
+                height=600,
+                returned_objects=["last_object_clicked_tooltip"],
+                key="trajectory_map",
+            )
+
+            clicked_tooltip = (traj_data or {}).get("last_object_clicked_tooltip")
+            clicked_idx = parse_point_index_from_tooltip(clicked_tooltip)
+            if clicked_idx is not None and clicked_idx != selected_idx:
+                st.session_state["selected_point_idx"] = clicked_idx
+                st.rerun()
+
+            score_by_idx = {pt["point_index"]: pt for pt in scores}
+            selected_pt = score_by_idx.get(selected_idx)
+
+            if selected_pt:
                 try:
                     impact_data = call_point_impact_api({
                         "lat": selected_pt["lat"],
@@ -152,10 +156,13 @@ def _render_single_drone():
                         "speed_m_s": speed_m_s,
                     })
 
-                    fallout_map = make_coloured_trajectory(result)
+                    bounds = compute_fallout_bounds(
+                        selected_pt["lat"], selected_pt["lon"], impact_data,
+                    )
+                    fallout_map = make_coloured_trajectory(result, zoom_bounds=bounds)
                     add_risk_zone_overlay(
                         fallout_map,
-                        result["trajectory_scores"],
+                        scores,
                         result.get("risk_zones", []),
                     )
                     folium.CircleMarker(
@@ -165,7 +172,13 @@ def _render_single_drone():
                         tooltip="Selected point",
                     ).add_to(fallout_map)
                     add_fallout_overlay(fallout_map, impact_data)
-                    st_folium(fallout_map, width="stretch", height=450, returned_objects=[])
+                    st_folium(
+                        fallout_map,
+                        width="stretch",
+                        height=450,
+                        returned_objects=[],
+                        key="fallout_map",
+                    )
 
                     st.markdown(make_point_detail_panel(selected_pt, impact_data))
                 except Exception as e:

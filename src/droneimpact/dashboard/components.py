@@ -34,7 +34,28 @@ def _score_colour(score: float, max_score: float) -> str:
     return f"#{r:02x}{g:02x}{b:02x}"
 
 
-def make_trajectory_map(result: dict) -> folium.Map:
+def _eval_point_tooltip(pt: dict) -> str:
+    return (
+        f"Point {pt['point_index']} | "
+        f"Dist: {pt['distance_from_current_m']:.0f} m | "
+        f"Casualties: {pt['expected_casualties']:.3f} | "
+        f"Score: {pt['engagement_score']:.3f}"
+    )
+
+
+def parse_point_index_from_tooltip(tooltip: str | None) -> int | None:
+    if not tooltip or not tooltip.startswith("Point "):
+        return None
+    try:
+        return int(tooltip.split("|")[0].strip().removeprefix("Point "))
+    except (ValueError, IndexError):
+        return None
+
+
+def make_trajectory_map(
+    result: dict,
+    selected_point_idx: int | None = None,
+) -> folium.Map:
     scores = result["trajectory_scores"]
     rec = result["recommended_engagement"]
 
@@ -65,19 +86,16 @@ def make_trajectory_map(result: dict) -> folium.Map:
     max_cas = max((pt["expected_casualties"] for pt in scores), default=1.0) or 1.0
     eval_group = folium.FeatureGroup(name="Evaluation Points", show=True)
     for pt in scores:
+        is_selected = pt["point_index"] == selected_point_idx
         r = 3 + 7 * (pt["expected_casualties"] / max_cas)
         folium.CircleMarker(
             [pt["lat"], pt["lon"]],
-            radius=r,
-            color="#6366f1",
+            radius=12 if is_selected else r,
+            color="#8b5cf6" if is_selected else "#6366f1",
             fill=True,
-            fill_opacity=0.5,
-            tooltip=(
-                f"Point {pt['point_index']} | "
-                f"Dist: {pt['distance_from_current_m']:.0f} m | "
-                f"Casualties: {pt['expected_casualties']:.3f} | "
-                f"Score: {pt['engagement_score']:.3f}"
-            ),
+            fill_opacity=1.0 if is_selected else 0.5,
+            weight=4 if is_selected else 2,
+            tooltip=_eval_point_tooltip(pt),
         ).add_to(eval_group)
 
     folium.Marker(
@@ -408,7 +426,42 @@ def prepare_animation_frames(result: dict, speed_m_s: float = 51.4) -> list[dict
     return frames
 
 
-def make_coloured_trajectory(result: dict) -> folium.Map:
+def compute_fallout_bounds(
+    point_lat: float,
+    point_lon: float,
+    impact_response: dict,
+) -> list[list[float]]:
+    """Compute a [[south, west], [north, east]] bounding box covering the impact ellipses."""
+    lat_per_m = 1.0 / 111_320.0
+    lon_per_m = 1.0 / (111_320.0 * max(math.cos(math.radians(point_lat)), 0.01))
+
+    max_offset_lat = 500 * lat_per_m
+    max_offset_lon = 500 * lon_per_m
+
+    modes = impact_response.get("modes", {})
+    for mode_data in modes.values():
+        ellipse = mode_data.get("impact_ellipse", {})
+        semi_major = ellipse.get("semi_major_m", 0)
+        if semi_major <= 0:
+            continue
+        c_lat = ellipse.get("centre_lat", point_lat)
+        c_lon = ellipse.get("centre_lon", point_lon)
+        offset_lat = abs(c_lat - point_lat) + semi_major * lat_per_m
+        offset_lon = abs(c_lon - point_lon) + semi_major * lon_per_m
+        max_offset_lat = max(max_offset_lat, offset_lat)
+        max_offset_lon = max(max_offset_lon, offset_lon)
+
+    padding = 1.2
+    return [
+        [point_lat - max_offset_lat * padding, point_lon - max_offset_lon * padding],
+        [point_lat + max_offset_lat * padding, point_lon + max_offset_lon * padding],
+    ]
+
+
+def make_coloured_trajectory(
+    result: dict,
+    zoom_bounds: list[list[float]] | None = None,
+) -> folium.Map:
     scores = result["trajectory_scores"]
     rec = result["recommended_engagement"]
 
@@ -433,11 +486,14 @@ def make_coloured_trajectory(result: dict) -> folium.Map:
         tooltip="Recommended engagement point",
     ).add_to(m)
 
-    coords = [[pt["lat"], pt["lon"]] for pt in scores]
-    m.fit_bounds([
-        [min(p[0] for p in coords) - 0.02, min(p[1] for p in coords) - 0.02],
-        [max(p[0] for p in coords) + 0.02, max(p[1] for p in coords) + 0.02],
-    ])
+    if zoom_bounds:
+        m.fit_bounds(zoom_bounds)
+    else:
+        coords = [[pt["lat"], pt["lon"]] for pt in scores]
+        m.fit_bounds([
+            [min(p[0] for p in coords) - 0.02, min(p[1] for p in coords) - 0.02],
+            [max(p[0] for p in coords) + 0.02, max(p[1] for p in coords) + 0.02],
+        ])
 
     return m
 

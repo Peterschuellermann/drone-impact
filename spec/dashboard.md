@@ -19,6 +19,8 @@ Sidebar inputs: latitude, longitude, altitude (MSL), heading, speed, evaluation 
 | Risk Profile | Dual-axis chart: expected casualties and engagement score vs distance |
 | Statistics | Markdown panel with mode breakdowns, simulation metadata, miss branch casualties |
 
+Below the trajectory map, a fallout inspection panel shows impact ellipses and the combined danger zone for the selected evaluation point. Points are selected by clicking directly on the trajectory map — the clicked point is highlighted and the fallout map zooms to the impact area. The recommended engagement point is selected by default. Selection persists across Streamlit reruns via `st.session_state`.
+
 A trajectory replay slider animates the drone's progress along the trajectory, highlighting the current evaluation point and its score. Frames are pre-computed from the trajectory scores and drone speed.
 
 GeoJSON export is available — outputs trajectory line and evaluation points as a FeatureCollection.
@@ -56,8 +58,10 @@ All rendering functions live in `dashboard/components.py`:
 
 | Function | Returns | Purpose |
 |---|---|---|
-| `make_trajectory_map()` | `folium.Map` | Evaluation points, impact ellipses, recommended marker |
-| `make_coloured_trajectory()` | `folium.Map` | Trajectory line with engagement-score colour gradient |
+| `make_trajectory_map()` | `folium.Map` | Evaluation points (clickable), impact ellipses, recommended marker; optional `selected_point_idx` highlights the selected point |
+| `make_coloured_trajectory()` | `folium.Map` | Trajectory line with engagement-score colour gradient; optional `zoom_bounds` for fallout zoom |
+| `parse_point_index_from_tooltip()` | `int \| None` | Extracts point index from a clicked marker's tooltip string |
+| `compute_fallout_bounds()` | `list` | Computes bounding box covering all impact ellipses for a point |
 | `make_impact_scatter()` | `plotly.Figure` | Impact point scatter by mode |
 | `make_risk_profile()` | `plotly.Figure` | Dual-axis casualties/score vs distance |
 | `make_stats_panel()` | Markdown `str` | Summary statistics |

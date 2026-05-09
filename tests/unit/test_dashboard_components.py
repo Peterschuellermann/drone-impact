@@ -6,10 +6,12 @@ import plotly.graph_objects as go
 import pytest
 
 from droneimpact.dashboard.components import (
+    compute_fallout_bounds,
     make_impact_scatter,
     make_risk_profile,
     make_stats_panel,
     make_trajectory_map,
+    parse_point_index_from_tooltip,
 )
 from droneimpact.dashboard.utils import export_geojson, format_casualties, format_distance
 
@@ -125,6 +127,64 @@ class TestTrajectoryMap:
         sample_result["impact_distributions"] = []
         m = make_trajectory_map(sample_result)
         assert m is not None
+
+    def test_selected_point_renders(self, sample_result):
+        import folium
+        m = make_trajectory_map(sample_result, selected_point_idx=0)
+        assert isinstance(m, folium.Map)
+
+    def test_selected_point_none_renders(self, sample_result):
+        import folium
+        m = make_trajectory_map(sample_result, selected_point_idx=None)
+        assert isinstance(m, folium.Map)
+
+
+class TestParsePointIndex:
+    def test_valid_tooltip(self):
+        tooltip = "Point 5 | Dist: 2500 m | Casualties: 0.012 | Score: 0.850"
+        assert parse_point_index_from_tooltip(tooltip) == 5
+
+    def test_zero_index(self):
+        assert parse_point_index_from_tooltip("Point 0 | Dist: 0 m") == 0
+
+    def test_none_input(self):
+        assert parse_point_index_from_tooltip(None) is None
+
+    def test_non_point_tooltip(self):
+        assert parse_point_index_from_tooltip("Start") is None
+
+    def test_recommended_tooltip(self):
+        assert parse_point_index_from_tooltip("RECOMMENDED | Casualties: 0.01") is None
+
+    def test_empty_string(self):
+        assert parse_point_index_from_tooltip("") is None
+
+
+class TestFalloutBounds:
+    def test_bounds_structure(self):
+        bounds = compute_fallout_bounds(48.5, 35.0, {"modes": {}})
+        assert len(bounds) == 2
+        assert len(bounds[0]) == 2
+        assert len(bounds[1]) == 2
+        assert bounds[0][0] < bounds[1][0]
+        assert bounds[0][1] < bounds[1][1]
+
+    def test_bounds_expand_with_ellipses(self):
+        small = compute_fallout_bounds(48.5, 35.0, {"modes": {}})
+        large = compute_fallout_bounds(48.5, 35.0, {
+            "modes": {
+                "propulsion_loss": {
+                    "impact_ellipse": {
+                        "centre_lat": 48.5,
+                        "centre_lon": 35.0,
+                        "semi_major_m": 5000.0,
+                    },
+                },
+            },
+        })
+        small_span = (small[1][0] - small[0][0]) * (small[1][1] - small[0][1])
+        large_span = (large[1][0] - large[0][0]) * (large[1][1] - large[0][1])
+        assert large_span > small_span
 
 
 class TestImpactScatter:
