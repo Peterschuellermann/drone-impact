@@ -207,7 +207,7 @@ def _render_single_drone():
             clicked_idx = parse_point_index_from_tooltip(clicked_tooltip)
             if clicked_idx is not None and clicked_idx != selected_idx:
                 st.session_state["selected_point_idx"] = clicked_idx
-                st.rerun()
+                st.rerun(scope="fragment")
 
             if selected_pt and impact_data:
                 st.markdown(make_point_detail_panel(selected_pt, impact_data))
@@ -379,7 +379,7 @@ def _render_batch():
             clicked_idx = parse_point_index_from_tooltip(clicked_tooltip)
             if clicked_idx is not None and clicked_idx != selected_idx:
                 st.session_state[batch_sel_key] = clicked_idx
-                st.rerun()
+                st.rerun(scope="fragment")
 
             if selected_pt and impact_data:
                 st.markdown(make_point_detail_panel(selected_pt, impact_data))
