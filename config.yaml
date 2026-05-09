@@ -87,7 +87,7 @@ scoring:
 
 parallelism:
   point_workers: 0    # per-point thread parallelism; 0 = auto (Numba releases GIL)
-  batch_workers: 0    # per-drone process parallelism; 0 = auto (cpu_count)
+  batch_workers: 1    # per-drone process parallelism; 1 = sequential (avoids OOM from data duplication)
   batch_parallel_threshold: 2
 
 cache:
