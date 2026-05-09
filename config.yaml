@@ -42,7 +42,7 @@ engagement:
   mode_enable:
     propulsion_loss: true
     loss_of_control: true
-    break_apart: false
+    break_apart: true
 
 casualty:
   blast:
