@@ -89,11 +89,14 @@ def _render_single_drone():
         analyze_btn = st.button("Analyze", type="primary", width="stretch") or auto_submit
 
     @st.cache_data(ttl=300, show_spinner=False)
-    def _cached_api_call(lat, lon, altitude_m, heading_deg, speed_m_s, _spacing, _range, n_mc):
-        return call_api({
-            "lat": lat, "lon": lon, "altitude_m": altitude_m,
-            "heading_deg": heading_deg, "speed_m_s": speed_m_s,
-        }, n_monte_carlo_samples=n_mc)
+    def _cached_api_call(lat, lon, altitude_m, heading_deg, speed_m_s, spacing, range_m, n_mc):
+        return call_api(
+            {"lat": lat, "lon": lon, "altitude_m": altitude_m,
+             "heading_deg": heading_deg, "speed_m_s": speed_m_s},
+            n_monte_carlo_samples=n_mc,
+            evaluation_spacing_m=spacing,
+            max_range_m=range_m,
+        )
 
     if analyze_btn:
         with st.spinner("Running analysis..."):

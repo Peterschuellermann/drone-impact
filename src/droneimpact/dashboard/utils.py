@@ -18,11 +18,20 @@ def get_api_endpoint() -> str:
     return "http://localhost:8000"
 
 
-def call_api(drone_state: dict, n_monte_carlo_samples: int | None = None) -> dict:
+def call_api(
+    drone_state: dict,
+    n_monte_carlo_samples: int | None = None,
+    evaluation_spacing_m: int | None = None,
+    max_range_m: int | None = None,
+) -> dict:
     endpoint = get_api_endpoint()
     body: dict = {"trajectory": drone_state}
     if n_monte_carlo_samples is not None:
         body["n_monte_carlo_samples"] = n_monte_carlo_samples
+    if evaluation_spacing_m is not None:
+        body["evaluation_spacing_m"] = evaluation_spacing_m
+    if max_range_m is not None:
+        body["max_range_m"] = max_range_m
     response = httpx.post(
         f"{endpoint}/analyze/single",
         json=body,

@@ -97,7 +97,7 @@ async def lifespan(app: FastAPI):
                 data_loaded=True,
                 population_cells=app.state.population_cells,
             )
-            ctx = mp.get_context("spawn")
+            ctx = mp.get_context("fork")
             executor = ProcessPoolExecutor(
                 max_workers=n_batch_workers,
                 mp_context=ctx,
