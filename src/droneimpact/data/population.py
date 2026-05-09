@@ -1,10 +1,13 @@
 from __future__ import annotations
 
 import math
+from collections import OrderedDict
 from pathlib import Path
 
 import h3
 import numpy as np
+
+_DEFAULT_CACHE_MAX = 10_000
 
 
 class PopulationIndex:
@@ -14,12 +17,14 @@ class PopulationIndex:
     ``query()`` sums population counts directly without area multiplication.
     """
 
-    def __init__(self, cell_data: dict[str, float], resolution: int = 8):
+    def __init__(self, cell_data: dict[str, float], resolution: int = 8,
+                 cache_max: int = _DEFAULT_CACHE_MAX):
         self._data = cell_data
         self._resolution = resolution
         edge_m = h3.average_hexagon_edge_length(resolution, unit="m")
         self._cell_diameter_m = edge_m * math.sqrt(3)
-        self._disk_cache: dict[str, float] = {}
+        self._disk_cache: OrderedDict[str, float] = OrderedDict()
+        self._cache_max = cache_max
 
     @classmethod
     def load_from_file(cls, path: str | Path, resolution: int = 8) -> "PopulationIndex":
@@ -47,9 +52,12 @@ class PopulationIndex:
         key = f"{centre}:{k}"
         cached = self._disk_cache.get(key)
         if cached is not None:
+            self._disk_cache.move_to_end(key)
             return cached
         neighbourhood = h3.grid_disk(centre, k)
         total = sum(self._data.get(cell, 0.0) for cell in neighbourhood)
+        if len(self._disk_cache) >= self._cache_max:
+            self._disk_cache.popitem(last=False)
         self._disk_cache[key] = total
         return total
 
