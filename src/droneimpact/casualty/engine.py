@@ -16,6 +16,10 @@ class CasualtyEngine:
     ):
         self._pop = population
         self._infra = infrastructure
+        if config.blast_bands is not None:
+            config.blast_bands = sorted(config.blast_bands, key=lambda b: b.radius_m)
+        if config.frag_bands is not None:
+            config.frag_bands = sorted(config.frag_bands, key=lambda b: b.radius_m)
         self._config = config
 
     @property

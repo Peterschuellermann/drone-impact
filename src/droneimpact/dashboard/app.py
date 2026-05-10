@@ -629,7 +629,7 @@ def _render_multi_trajectory_single(
         scored_candidate_idx=scored_idx,
     )
     st.caption("Click a trajectory or target in the layer panel to explore. Most probable trajectory is scored.")
-    st_folium(traj_map, width="stretch", height=600, returned_objects=[], key="mt_map")
+    st_folium(traj_map, use_container_width=True, height=600, returned_objects=[], key="mt_map")
 
     st.subheader("Candidate Targets")
     table_data = []
@@ -708,7 +708,7 @@ def _render_multi_trajectory_scenario(
         overview_drones = [{"drone_id": d["drone_id"], "trajectory": d["trajectory"]} for d in drones]
         st_folium(
             make_drone_overview_map(overview_drones),
-            width="stretch", height=400, returned_objects=[], key="mt_overview",
+            use_container_width=True, height=400, returned_objects=[], key="mt_overview",
         )
         st.info("Click **Predict Targets** to analyze all drones in this scenario.")
         return
@@ -777,7 +777,7 @@ def _render_multi_trajectory_scenario(
     traj_map = make_multi_trajectory_map(
         traj["lat"], traj["lon"], candidates,
     )
-    st_folium(traj_map, width="stretch", height=500, returned_objects=[], key="mt_detail_map")
+    st_folium(traj_map, use_container_width=True, height=500, returned_objects=[], key="mt_detail_map")
 
     table_data = []
     for i, c in enumerate(candidates):

@@ -672,9 +672,12 @@ class ScoringEngine:
             pop_at_points, empty_thresh,
         )
 
-        return self._apply_safe_intercept_constraint(
+        result = self._apply_safe_intercept_constraint(
             point_scores, impact_dists, t_start, n_samples, n_pts, pop_at_points,
         )
+        result.metadata["n_points_skipped"] = n_points_skipped
+        result.metadata["n_points_dense"] = n_points_dense
+        return result
 
     # --- Parallel scoring helpers ---
 
