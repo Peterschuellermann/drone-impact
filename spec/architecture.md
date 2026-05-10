@@ -13,17 +13,17 @@
 ## High-Level Architecture
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                        REST API Layer                        │
-│   POST /analyze/single   POST /analyze/batch   GET /batch/  │
-└────────────────────────────┬────────────────────────────────┘
-                             │
-┌────────────────────────────▼────────────────────────────────┐
-│                     Orchestration Layer                      │
-│  - Input validation                                         │
-│  - Trajectory discretisation                                │
-│  - Async job management (batch)                             │
-└──────┬──────────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────────────┐
+│                            REST API Layer                            │
+│   POST /analyze/single   POST /analyze/batch   GET /analyze/batch/  │
+└──────────────────────────────────┬───────────────────────────────────┘
+                                   │
+┌──────────────────────────────────▼───────────────────────────────────┐
+│                          Orchestration Layer                         │
+│  - Input validation                                                 │
+│  - Trajectory discretisation                                        │
+│  - Async job management (batch)                                     │
+└──────┬──────────────────────────────────────────────────────────────┘
        │
        ├──────────────────────────────────────────────────────┐
        ▼                                                      ▼
@@ -80,7 +80,7 @@ POST /analyze/batch
   Response: BatchOutput or { batch_id, status: "processing" }
   Timeout:  120 s (sync), immediate (async)
 
-GET /batch/{batch_id}
+GET /analyze/batch/{batch_id}
   Response: BatchOutput with status field
 
 GET /health
@@ -306,6 +306,9 @@ scoring:
   miss_cache_heading_round_deg: 1.0
   zone_caution_threshold: 0.1
   zone_nogo_threshold: 1.0
+  interception_timing_uncertainty_s: 3.0
+  drone_maneuverability_radius_m: 300.0
+  interception_zone_min_points: 2
 
 cache:
   enabled: true

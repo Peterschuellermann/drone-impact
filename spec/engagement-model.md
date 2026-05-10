@@ -186,6 +186,9 @@ Short trajectories (≤30 points) bypass adaptive resolution and run full MC on 
 | `miss_cache_heading_round_deg` | 1.0 | Heading rounding for miss cache key |
 | `zone_caution_threshold` | 0.1 | Expected casualties threshold for caution zone |
 | `zone_nogo_threshold` | 1.0 | Expected casualties threshold for no-go zone |
+| `interception_timing_uncertainty_s` | 3.0 | Timing uncertainty window (seconds) applied when mapping an engagement point to an interception zone |
+| `drone_maneuverability_radius_m` | 300.0 | Lateral radius (metres) within which the drone could maneuver before intercept, expanding the effective interception zone |
+| `interception_zone_min_points` | 2 | Minimum number of consecutive trajectory points required to form an interception zone |
 
 ### Miss Branch Cache
 
