@@ -4,7 +4,6 @@ import math
 import time
 from concurrent.futures import ThreadPoolExecutor
 
-import h3
 import numpy as np
 
 from droneimpact.casualty.engine import CasualtyEngine
@@ -30,21 +29,6 @@ from droneimpact.scoring.types import (
 from droneimpact.scoring.zones import classify_zones
 
 SHORT_TRAJECTORY_THRESHOLD = 30
-
-# --- Miss branch cache ---
-
-
-def _miss_cache_key(
-    lat: float, lon: float, agl: float, heading_deg: float,
-    n_samples: int, agl_round: float, hdg_round: float,
-) -> tuple:
-    cell = h3.latlng_to_cell(lat, lon, 8)
-    return (cell, round(agl / agl_round) * agl_round, round(heading_deg / hdg_round) * hdg_round, n_samples)
-
-
-def clear_miss_cache() -> None:
-    """No-op. Miss cache is now per-ScoringEngine instance."""
-    pass
 
 
 # --- Coordinate helpers ---
@@ -76,7 +60,6 @@ class ScoringEngine:
     def __init__(self, config: AppConfig, max_point_workers: int | None = None):
         self._config = config
         self._prescan_radius = _max_frag_radius(config)
-        self._miss_cache: dict[tuple, float] = {}
         if max_point_workers is not None:
             self._max_workers = max_point_workers
         else:
@@ -146,33 +129,15 @@ class ScoringEngine:
 
         return ps, dists
 
-    # --- Miss branch with caching ---
+    # --- Miss branch (spec M4: straight-line continuation) ---
 
+    @staticmethod
     def _compute_miss_casualties(
-        self,
         last: TrajectoryPoint,
-        dem: DEMIndex,
         casualty_engine: CasualtyEngine,
-        n_samples: int,
-        rng: np.random.Generator,
     ) -> float:
-        phys = self._config.physics
-        scoring_cfg = self._config.scoring
-        last_agl = dem.msl_to_agl(last.lat, last.lon, last.altitude_m)
-
-        key = _miss_cache_key(
-            last.lat, last.lon, last_agl, last.heading_deg, n_samples,
-            scoring_cfg.miss_cache_agl_round_m, scoring_cfg.miss_cache_heading_round_deg,
-        )
-        cached = self._miss_cache.get(key)
-        if cached is not None:
-            return cached
-
-        miss_enu = simulate_m1(last_agl, last.heading_deg, last.speed_m_s, n_samples, phys, rng=rng)
-        miss_wgs84 = _enu_to_wgs84_fast(miss_enu, last.lat, last.lon)
-        miss_casualties = casualty_engine.compute(miss_wgs84)
-        self._miss_cache[key] = miss_casualties
-        return miss_casualties
+        terminal_wgs84 = np.array([[last.lat, last.lon]])
+        return casualty_engine.compute(terminal_wgs84)
 
     # --- Population pre-scan ---
 
@@ -552,7 +517,7 @@ class ScoringEngine:
         n_samples = phys.n_monte_carlo_samples
 
         miss_casualties = self._compute_miss_casualties(
-            trajectory[-1], dem, casualty_engine, n_samples, rng,
+            trajectory[-1], casualty_engine,
         )
 
         pop_at_points = self._population_prescan(
