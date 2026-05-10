@@ -76,6 +76,35 @@ class InfrastructureIndex:
             worst = max(worst, weight * max(0.0, 1.0 - dist / radius))
         return min(worst, self._config.max_penalty)
 
+    @property
+    def categories(self) -> list[str]:
+        return list(self._coords_deg.keys())
+
+    def feature_counts(self) -> dict[str, int]:
+        return {cat: len(arr) for cat, arr in self._coords_deg.items()}
+
+    def get_features_in_bbox(
+        self,
+        south: float,
+        west: float,
+        north: float,
+        east: float,
+        categories: list[str] | None = None,
+    ) -> dict[str, np.ndarray]:
+        cats = categories if categories is not None else list(self._coords_deg.keys())
+        result: dict[str, np.ndarray] = {}
+        for cat in cats:
+            arr = self._coords_deg.get(cat)
+            if arr is None or len(arr) == 0:
+                continue
+            lons = arr[:, 0]
+            lats = arr[:, 1]
+            mask = (lats >= south) & (lats <= north) & (lons >= west) & (lons <= east)
+            filtered = arr[mask]
+            if len(filtered) > 0:
+                result[cat] = np.column_stack([filtered[:, 1], filtered[:, 0]])
+        return result
+
     def penalty_batch(self, lats: np.ndarray, lons: np.ndarray) -> np.ndarray:
         radius = self._config.penalty_radius_m
         pts = np.column_stack([

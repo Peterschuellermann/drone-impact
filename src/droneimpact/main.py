@@ -13,6 +13,7 @@ from fastapi import FastAPI
 from droneimpact.api.analyze import router as analyze_router
 from droneimpact.api.batch import JobStore, _init_batch_worker, router as batch_router
 from droneimpact.api.cache import ResultCache, compute_fingerprint
+from droneimpact.api.data import router as data_router
 from droneimpact.api.health import router as health_router
 from droneimpact.config import load_config
 from droneimpact.data.dem import DEMIndex
@@ -121,6 +122,7 @@ def create_app() -> FastAPI:
     app.include_router(health_router)
     app.include_router(analyze_router)
     app.include_router(batch_router)
+    app.include_router(data_router)
     return app
 
 

@@ -212,6 +212,26 @@ def load_scenarios(config_path: str | Path = "config.yaml") -> list[dict]:
     return scenarios
 
 
+def call_infrastructure_api(
+    south: float,
+    west: float,
+    north: float,
+    east: float,
+    categories: list[str] | None = None,
+) -> dict | None:
+    endpoint = get_api_endpoint()
+    params: dict = {"south": south, "west": west, "north": north, "east": east}
+    if categories:
+        params["categories"] = ",".join(categories)
+    try:
+        response = httpx.get(f"{endpoint}/data/infrastructure", params=params, timeout=10.0)
+        response.raise_for_status()
+        return response.json()
+    except Exception as e:
+        logger.warning("Could not fetch infrastructure data: %s", e)
+        return None
+
+
 def compute_bearing(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
     lat1_r, lon1_r = math.radians(lat1), math.radians(lon1)
     lat2_r, lon2_r = math.radians(lat2), math.radians(lon2)
