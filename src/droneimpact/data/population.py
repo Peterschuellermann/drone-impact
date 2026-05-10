@@ -24,6 +24,7 @@ class PopulationIndex:
         self._resolution = resolution
         edge_m = h3.average_hexagon_edge_length(resolution, unit="m")
         self._cell_diameter_m = edge_m * math.sqrt(3)
+        self._cell_area_m2 = h3.average_hexagon_area(resolution, unit="m^2")
         self._disk_cache: OrderedDict[str, float] = OrderedDict()
         self._cache_lock = threading.Lock()
         self._cache_max = cache_max
@@ -50,6 +51,19 @@ class PopulationIndex:
     def _k_for_radius(self, radius_m: float) -> int:
         return max(1, int(np.ceil(radius_m / self._cell_diameter_m)))
 
+    def _area_scale_factor(self, radius_m: float, k: int) -> float:
+        """Fraction of H3 disk area covered by a circle of the given radius.
+
+        H3 cells are much larger than typical casualty radii, so the raw disk
+        population vastly over-counts.  Scaling by circle_area / disk_area
+        assumes uniform density within the disk — a good approximation when
+        cells are coarser than the query radius.
+        """
+        circle_area = math.pi * radius_m * radius_m
+        n_cells = 3 * k * k + 3 * k + 1
+        disk_area = n_cells * self._cell_area_m2
+        return min(1.0, circle_area / disk_area)
+
     def _disk_population(self, centre: str, k: int) -> float:
         key = f"{centre}:{k}"
         with self._cache_lock:
@@ -68,7 +82,8 @@ class PopulationIndex:
     def query(self, lat: float, lon: float, radius_m: float) -> float:
         centre = h3.latlng_to_cell(lat, lon, self._resolution)
         k = self._k_for_radius(radius_m)
-        return float(self._disk_population(centre, k))
+        raw = self._disk_population(centre, k)
+        return float(raw * self._area_scale_factor(radius_m, k))
 
     def latlng_to_cells(
         self, lats: np.ndarray, lons: np.ndarray,
@@ -94,10 +109,11 @@ class PopulationIndex:
         k = self._k_for_radius(radius_m)
         unique_cells = set(cells)
         cell_pop = {c: self._disk_population(c, k) for c in unique_cells}
+        scale = self._area_scale_factor(radius_m, k)
 
         result = np.empty(len(cells), dtype=np.float32)
         for i, c in enumerate(cells):
-            result[i] = cell_pop[c]
+            result[i] = cell_pop[c] * scale
         return result
 
     @property

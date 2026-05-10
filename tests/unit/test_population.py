@@ -66,8 +66,9 @@ def test_from_dict_preserves_population_counts():
     cells = {cell: 42.0}
     idx = PopulationIndex.from_dict(cells)
     assert idx.cell_count == 1
+    assert idx._data[cell] == 42.0
     pop = idx.query(lat, lon, radius_m=50)
-    assert pop >= 42.0
+    assert pop > 0.0
 
 
 def test_k_for_radius_reasonable():
