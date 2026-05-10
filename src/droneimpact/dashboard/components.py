@@ -1022,6 +1022,50 @@ def add_interception_zones_layer(
     return map_obj
 
 
+INFRA_STYLES = {
+    "power_plant": ("#ef4444", "Power Plant"),
+    "hospital":    ("#3b82f6", "Hospital"),
+    "water_works": ("#06b6d4", "Water Works"),
+    "bridge":      ("#6b7280", "Bridge"),
+    "school":      ("#eab308", "School"),
+}
+
+
+def add_infrastructure_layer(
+    map_obj: folium.Map,
+    infra_data: dict,
+    enabled_categories: list[str] | None = None,
+) -> folium.Map:
+    features = infra_data.get("features", {})
+    if not features:
+        return map_obj
+
+    cats = enabled_categories if enabled_categories else list(features.keys())
+
+    for cat in cats:
+        points = features.get(cat)
+        if not points:
+            continue
+        colour, label = INFRA_STYLES.get(cat, ("#888888", cat))
+        group = folium.FeatureGroup(name=f"Infrastructure: {label}", show=True)
+
+        for lat, lon in points:
+            folium.CircleMarker(
+                location=[lat, lon],
+                radius=4,
+                color=colour,
+                fill=True,
+                fill_color=colour,
+                fill_opacity=0.7,
+                weight=1,
+                tooltip=f"{label} ({lat:.4f}, {lon:.4f})",
+            ).add_to(group)
+
+        group.add_to(map_obj)
+
+    return map_obj
+
+
 def make_point_detail_panel(point_data: dict, impact_response: dict) -> str:
     """Generate markdown summary for a selected evaluation point."""
     dist_km = point_data.get("distance_from_current_m", 0) / 1000

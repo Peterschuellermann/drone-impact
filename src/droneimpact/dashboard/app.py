@@ -6,7 +6,9 @@ from streamlit_folium import st_folium
 
 from droneimpact.dashboard.batch_input import render_batch_input
 from droneimpact.dashboard.components import (
+    INFRA_STYLES,
     add_fallout_overlay,
+    add_infrastructure_layer,
     add_interception_zones_layer,
     add_risk_zone_overlay,
     make_batch_map,
@@ -25,6 +27,7 @@ from droneimpact.dashboard.components import (
 from droneimpact.dashboard.utils import (
     call_api,
     call_batch_api,
+    call_infrastructure_api,
     call_point_impact_api,
     call_predict_targets,
     call_strikes_api,
@@ -91,6 +94,13 @@ def _render_single_drone():
         st.subheader("Analysis Parameters")
         evaluation_spacing_m = st.slider("Evaluation spacing (m)", 100, 5000, dash_cfg.default_evaluation_spacing_m, step=100)
         max_range_m = st.slider("Max range (km)", 1, 500, default_range_km) * 1000
+
+        st.divider()
+        with st.expander("Map Layers"):
+            infra_cats_enabled: list[str] = []
+            for cat, (colour, label) in INFRA_STYLES.items():
+                if st.checkbox(label, value=False, key=f"infra_{cat}"):
+                    infra_cats_enabled.append(cat)
 
         analyze_btn = st.button("Analyze", type="primary", width="stretch") or auto_submit
 
@@ -159,6 +169,19 @@ def _render_single_drone():
                 traj_map,
                 result.get("interception_zones", []),
             )
+
+            if infra_cats_enabled and scores:
+                traj_lats = [pt["lat"] for pt in scores]
+                traj_lons = [pt["lon"] for pt in scores]
+                infra_data = call_infrastructure_api(
+                    south=min(traj_lats) - 0.1,
+                    west=min(traj_lons) - 0.1,
+                    north=max(traj_lats) + 0.1,
+                    east=max(traj_lons) + 0.1,
+                    categories=infra_cats_enabled,
+                )
+                if infra_data:
+                    add_infrastructure_layer(traj_map, infra_data, infra_cats_enabled)
 
             _ranked_marker_colors = {
                 2: ("#f97316", "white"),
@@ -294,6 +317,13 @@ def _render_batch():
     with st.sidebar:
         drones = render_batch_input()
 
+        st.divider()
+        with st.expander("Map Layers"):
+            batch_infra_cats: list[str] = []
+            for cat, (colour, label) in INFRA_STYLES.items():
+                if st.checkbox(label, value=False, key=f"batch_infra_{cat}"):
+                    batch_infra_cats.append(cat)
+
     if drones is not None:
         with st.spinner(f"Analysing {len(drones)} drones..."):
             try:
@@ -377,6 +407,19 @@ def _render_batch():
                 traj_map,
                 drone_result.get("interception_zones", []),
             )
+
+            if batch_infra_cats and scores:
+                traj_lats = [pt["lat"] for pt in scores]
+                traj_lons = [pt["lon"] for pt in scores]
+                batch_infra_data = call_infrastructure_api(
+                    south=min(traj_lats) - 0.1,
+                    west=min(traj_lons) - 0.1,
+                    north=max(traj_lats) + 0.1,
+                    east=max(traj_lons) + 0.1,
+                    categories=batch_infra_cats,
+                )
+                if batch_infra_data:
+                    add_infrastructure_layer(traj_map, batch_infra_data, batch_infra_cats)
 
             impact_data = None
             if selected_pt:
