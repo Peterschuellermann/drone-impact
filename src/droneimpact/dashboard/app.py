@@ -82,13 +82,21 @@ def _render_single_drone():
             default_spd = 51.4
             default_range_km = dash_cfg.default_max_range_m // 1000
 
+        if st.session_state.get("_prev_scenario") != selected_scenario:
+            st.session_state["_prev_scenario"] = selected_scenario
+            st.session_state["input_lat"] = default_lat
+            st.session_state["input_lon"] = default_lon
+            st.session_state["input_alt"] = default_alt
+            st.session_state["input_hdg"] = default_hdg
+            st.session_state["input_spd"] = default_spd
+
         st.divider()
         st.header("Drone State")
-        lat = st.number_input("Latitude", value=default_lat, min_value=-90.0, max_value=90.0, format="%.5f")
-        lon = st.number_input("Longitude", value=default_lon, min_value=-180.0, max_value=180.0, format="%.5f")
-        altitude_m = st.number_input("Altitude (m)", value=default_alt, min_value=1.0, max_value=10000.0)
-        heading_deg = st.number_input("Heading (deg)", value=default_hdg, min_value=0.0, max_value=359.9)
-        speed_m_s = st.number_input("Speed (m/s)", value=default_spd, min_value=20.0, max_value=300.0)
+        lat = st.number_input("Latitude", value=default_lat, min_value=-90.0, max_value=90.0, format="%.5f", key="input_lat")
+        lon = st.number_input("Longitude", value=default_lon, min_value=-180.0, max_value=180.0, format="%.5f", key="input_lon")
+        altitude_m = st.number_input("Altitude (m)", value=default_alt, min_value=1.0, max_value=10000.0, key="input_alt")
+        heading_deg = st.number_input("Heading (deg)", value=default_hdg, min_value=0.0, max_value=359.9, key="input_hdg")
+        speed_m_s = st.number_input("Speed (m/s)", value=default_spd, min_value=20.0, max_value=300.0, key="input_spd")
 
         st.divider()
         st.subheader("Analysis Parameters")
@@ -704,7 +712,12 @@ def _render_multi_trajectory_scenario(
         st.session_state["mt_scenario_predictions"] = predictions
         st.session_state["mt_scenario_name"] = scenario["name"]
 
-    if "mt_scenario_predictions" not in st.session_state:
+    if (
+        "mt_scenario_predictions" not in st.session_state
+        or st.session_state.get("mt_scenario_name") != scenario["name"]
+    ):
+        if "mt_scenario_predictions" in st.session_state:
+            del st.session_state["mt_scenario_predictions"]
         overview_drones = [{"drone_id": d["drone_id"], "trajectory": d["trajectory"]} for d in drones]
         st_folium(
             make_drone_overview_map(overview_drones),
