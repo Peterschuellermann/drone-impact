@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import math
+import threading
 from collections import OrderedDict
 from pathlib import Path
 
@@ -24,6 +25,7 @@ class PopulationIndex:
         edge_m = h3.average_hexagon_edge_length(resolution, unit="m")
         self._cell_diameter_m = edge_m * math.sqrt(3)
         self._disk_cache: OrderedDict[str, float] = OrderedDict()
+        self._cache_lock = threading.Lock()
         self._cache_max = cache_max
 
     @classmethod
@@ -50,15 +52,17 @@ class PopulationIndex:
 
     def _disk_population(self, centre: str, k: int) -> float:
         key = f"{centre}:{k}"
-        cached = self._disk_cache.get(key)
-        if cached is not None:
-            self._disk_cache.move_to_end(key)
-            return cached
+        with self._cache_lock:
+            cached = self._disk_cache.get(key)
+            if cached is not None:
+                self._disk_cache.move_to_end(key)
+                return cached
         neighbourhood = h3.grid_disk(centre, k)
         total = sum(self._data.get(cell, 0.0) for cell in neighbourhood)
-        if len(self._disk_cache) >= self._cache_max:
-            self._disk_cache.popitem(last=False)
-        self._disk_cache[key] = total
+        with self._cache_lock:
+            if len(self._disk_cache) >= self._cache_max:
+                self._disk_cache.popitem(last=False)
+            self._disk_cache[key] = total
         return total
 
     def query(self, lat: float, lon: float, radius_m: float) -> float:
