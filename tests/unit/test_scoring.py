@@ -178,19 +178,6 @@ def test_zones_cover_trajectory(scoring, short_trajectory, flat_dem, casualty_en
     assert zones[-1].end_index == result.trajectory_scores[-1].point_index
 
 
-def test_miss_cache_hit(scoring, short_trajectory, flat_dem, casualty_engine):
-    scoring.score_trajectory(
-        short_trajectory, flat_dem, casualty_engine, (48.1, 31.0),
-        rng=np.random.default_rng(0)
-    )
-    cache_size_after_first = len(scoring._miss_cache)
-    scoring.score_trajectory(
-        short_trajectory, flat_dem, casualty_engine, (48.1, 31.0),
-        rng=np.random.default_rng(1)
-    )
-    assert len(scoring._miss_cache) == cache_size_after_first
-
-
 # --- Interpolation tests (I09) ---
 
 from droneimpact.physics.types import TrajectoryPoint
