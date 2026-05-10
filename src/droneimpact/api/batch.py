@@ -201,7 +201,8 @@ def _run_batch_job(batch_id: str, batch_request: BatchRequest, state, job_store:
         job_store.update(batch_id, status=result["status"], result=result,
                          completed_at=time.time())
     except Exception as exc:
-        job_store.update(batch_id, status="failed", error=str(exc))
+        job_store.update(batch_id, status="failed", error=str(exc),
+                         completed_at=time.time())
 
 
 # ── Endpoints ──────────────────────────────────────────────────────────────────
