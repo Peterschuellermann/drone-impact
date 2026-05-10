@@ -94,14 +94,13 @@ Altitudes are **metres above mean sea level (MSL)** in the API. The physics engi
       "expected_casualties": 0.16,
       "engagement_score": 0.79,
       "breakdown": {
-        "p_kill": 0.50,
-        "modes": {
-          "propulsion_loss": { "weight": 0.40, "expected_casualties": 0.12, "cep_m": 850 },
-          "loss_of_control": { "weight": 0.35, "expected_casualties": 0.25, "cep_m": 2100 },
-          "break_apart":     { "weight": 0.25, "expected_casualties": 0.08, "cep_m": 320 }
-        },
-        "miss_branch_expected_casualties": 1.42
-      }
+        "propulsion_loss": { "weight": 0.40, "expected_casualties": 0.12, "cep_m": 850 },
+        "loss_of_control": { "weight": 0.35, "expected_casualties": 0.25, "cep_m": 2100 },
+        "break_apart":     { "weight": 0.25, "expected_casualties": 0.08, "cep_m": 320 }
+      },
+      "miss_branch_expected_casualties": 1.42,
+      "hit_branch_expected_casualties": 0.14,
+      "high_risk": false
     }
   ],
   "impact_distributions": [
@@ -173,8 +172,10 @@ Altitudes are **metres above mean sea level (MSL)** in the API. The physics engi
 | `trajectory_scores` | One entry per evaluation point, ordered by distance from current position. Each point includes `heading_deg` and `speed_m_s` from the discretised trajectory |
 | `expected_casualties` | Expected number of casualties (weighted mean across outcome modes and Monte Carlo samples) |
 | `engagement_score` | Alias for `expected_casualties` — the primary optimisation target |
-| `breakdown.modes` | Per-mode contribution to the expected casualty count |
-| `breakdown.miss_branch_expected_casualties` | Expected casualties if the drone is not intercepted and completes its trajectory |
+| `breakdown` | Flat dict keyed by mode name (`propulsion_loss`, `loss_of_control`, `break_apart`). Each value contains `weight`, `expected_casualties`, and `cep_m` |
+| `miss_branch_expected_casualties` | Expected casualties if the drone is not intercepted and completes its trajectory. Top-level field on each trajectory point, not inside `breakdown` |
+| `hit_branch_expected_casualties` | Hit-branch expected casualties (weighted sum across modes). Top-level field on each trajectory point |
+| `high_risk` | Boolean flag; true when `hit_branch_expected_casualties` exceeds the high-risk threshold |
 | `impact_ellipse` | 90 % confidence ellipse for debris impact distribution for this mode |
 | `heatmap_geojson` | Optional per-cell impact probability (H3 resolution 9, ~150 m cells). Returned only if `include_heatmap: true` in request |
 | `reasoning` | Short human-readable explanation of why this point is recommended (generated from rules, not LLM) |
@@ -198,7 +199,7 @@ Altitudes are **metres above mean sea level (MSL)** in the API. The physics engi
 }
 ```
 
-For async jobs, the endpoint returns `{ "batch_id": "...", "status": "processing" }` immediately. Poll `GET /batch/{batch_id}` for results.
+For async jobs, the endpoint returns `{ "batch_id": "...", "status": "processing" }` immediately. Poll `GET /analyze/batch/{batch_id}` for results.
 
 ---
 
