@@ -147,8 +147,8 @@ def parse_csv(text: str) -> tuple[list[dict], list[str]]:
     if reader.fieldnames is None:
         return [], ["CSV has no header row."]
 
-    fields = {f.strip().lower() for f in reader.fieldnames}
-    missing = REQUIRED_COLUMNS - fields
+    reader.fieldnames = [f.strip().lower() for f in reader.fieldnames]
+    missing = REQUIRED_COLUMNS - set(reader.fieldnames)
     if missing:
         return [], [f"Missing required columns: {', '.join(sorted(missing))}"]
 
